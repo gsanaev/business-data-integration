@@ -1,36 +1,49 @@
 # 📊 Business Data Integration & Economic Indicators Pipeline in R
 
-This project demonstrates how multiple firm-level data sources can be cleaned, harmonized, linked, and integrated into a coherent analytical dataset for producing structural economic indicators.
+*A Reproducible Workflow for Multi-Source Firm-Level Statistics*
 
-It reflects typical workflows in **business statistics, structural reporting**, and **multi-source statistical production**, such as those used in official statistics (e.g., SysdU, structural and short-term statistics, administrative data integration).
+![made-with-R](https://img.shields.io/badge/Made%20with-R-276DC2.svg)
+![license](https://img.shields.io/badge/license-MIT-green.svg)
 
-All data used here are **synthetic**, but generated to mimic realistic structures, inconsistencies, and integration challenges.
+This project demonstrates how to integrate heterogeneous business datasets into a coherent analytical framework for economic statistics.
+It reflects challenges commonly encountered in official statistics (e.g., Destatis, Eurostat): inconsistent identifiers, divergent variable definitions, missing values, measurement errors, and discrepancies across data sources.
+
+The project uses fully synthetic data to illustrate transparent, reproducible methods for:
+- data generation
+- cleaning & validation
+- harmonization across sources
+- statistical integration
+- computation of structural indicators
+- visualization of economic patterns
+
+All code is implemented in R using a modular pipeline suitable for production-like environments.
 
 
-## 1. Project Overview  
+## 🚀 1. Project Overview  
 
-Modern statistical production frequently relies on multiple heterogeneous data sources—administrative registers, business surveys, and accounting data. These sources differ in:
+Modern economic statistics increasingly rely on **multi-source integration**:
+administrative business registers, structural business surveys, short-term indicators, and accounting extracts.
 
+Such sources differ in:
+- reporting frequency
+- timeliness
 - variable definitions
-- identifier structures
-- classification systems
-- degrees of completeness
-- reporting accuracy
+- quality and completeness
+- industry and regional classification detail
 
-This project provides a reproducible pipeline in **R** that:
-- cleans and validates source datasets
-- harmonizes sector/classification variables
-- links identifiers across sources
-- resolves discrepancies using precedence rules
-- evaluates data quality
-- produces sectoral and regional economic indicators
-
-The workflow mirrors real-world processes in statistical offices preparing multi-source structural business statistics.
+This project provides a compact but realistic framework to:
+1. Generate synthetic firm-level source datasets
+2. Clean and validate each dataset
+3 Link identifiers and harmonize classifications
+4. Integrate monthly panels across sources
+5. Compute economic indicators at firm, sector, and regional level
+6. Produce reproducible tables and visualizations
 
 
-## 2. Repository Structure  
+## 2. Repository Structure
+
 ```text
-project/
+business-data-integration/
 ├── R/
 │   ├── 01_generate_synthetic_data.R
 │   ├── 02_clean_and_validate_data.R
@@ -39,201 +52,182 @@ project/
 │   └── 05_visualize_results.R
 │
 ├── data/
-│   ├── raw/        # synthetic source datasets
-│   └── processed/  # cleaned & integrated datasets
+│   ├── raw/        # synthetic raw datasets (generated)
+│   └── clean/      # cleaned intermediate data
 │
+├── data/processed/ # unified firm-level panel (analysis-ready)
 ├── output/
-│   ├── figures/
-│   └── tables/
+│   ├── tables/     # aggregated indicators
+│   └── figures/    # visualizations
 │
+├── renv.lock
 └── README.md
 ```
+**Reproducibility**: The project uses `renv` for a full dependency snapshot.
 
-## 3. Synthetic Datasets
+## 🧪 3. Synthetic Data Sources
 
-The project uses three synthetic input datasets reflecting typical structures of business and administrative statistics.
+Three realistic (but fully artificial) firm-level datasets are generated:
 
-## Dataset A – Administrative Data (Business Register-like)  
+### A) Administrative Business Register
 
-Variables include:  
-- `firm_id`  
-- `nace2` (sector classification)  
-- `region`  
-- `employees`  
-- `turnover_admin`  
-Includes realistic imperfections: missing values, mild outliers, and coding inconsistencies.
+Variables:
+- `firm_id`
+- `region_code`
+- `nace_code`
+- `legal_form`
+- `employees`
+- `revenue_last_year`
 
-## Dataset B – Survey Data (Sample of Firms)  
+Intentionally includes:
+- missing values
+- negative values
+- inconsistent reporting patterns
 
-Variables include:  
-- `firm_id` (subset of A + some survey-only firms)  
-- `turnover_survey`  
-- `employees_survey`  
-- `investment`  
-- `it_spending`  
-Typical patterns: rounding, under-reporting, selective non-response.  
+### B) Monthly Employment Survey
 
-## Dataset C – Accounting Extract  
+Panel data for Jan–Dec 2023:
+- `firm_id`
+- `month`
+- `employees`
+- synthetic missingness for interpolation
+- regional & sector attributes copied from the register
 
-Variables include:
-- `internal_id` → requires mapping to `firm_id`  
-- `branch_code` → must be harmonized to `nace2`  
-- `revenue`  
-- `wage_bill`  
-- `costs_total`  
-Includes: implausible ratios, classification inconsistencies, and ID mismatches.    
+### C) Monthly Turnover Survey
+
+Variables:
+- `firm_id`
+- `month`
+- `turnover`
+- missing values for interpolation
+- moderate log-normal variability
 
 
-## 4. Methods & Workflow
+## 🔧 4. Methods & Workflow
 
-### Step 1 — Data Cleaning
-- Missing-value treatment
-- Outlier detection
-- Standardization of variable formats
-- Removal of implausible observations
-- Structural validation checks
+### Pipeline Diagram
+```markdown
+                 ┌────────────────────────────┐
+                 │ 01_generate_synthetic_data │
+                 └──────────────┬─────────────┘
+                                ▼
+                 ┌────────────────────────────┐
+                 │ 02_clean_and_validate_data │
+                 └──────────────┬─────────────┘
+                                ▼
+                 ┌────────────────────────────┐
+                 │   03_integrate_sources     │
+                 └──────────────┬─────────────┘
+                                ▼
+                 ┌────────────────────────────┐
+                 │   04_compute_indicators    │
+                 └──────────────┬─────────────┘
+                                ▼
+                 ┌────────────────────────────┐
+                 │   05_visualize_results     │
+                 └────────────────────────────┘
+```
 
-### Step 2 — Classification Harmonization
-- Map `branch_code` → `nace2` using a synthetic lookup table
-- Resolve minor inconsistencies
-- Flag ambiguous cases
+### Step 1 — Data Cleaning & Validation
+- structural key validation
+- detection of inconsistencies (negative values, missingness)
+- industry/region-based imputation
+- time-series interpolation (approximation)
 
-### Step 3 — Identifier Linking
-- Convert `internal_id` to `firm_id` using a crosswalk
-- Flag unmatched or conflicting identifiers
-- Create a unified `firm_id` key across all datasets
+### Step 2 — Harmonization & Identifier Mapping
+- standardization of variable names
+- controlled join logic between datasets
+- date harmonization
+- preparation of unified firm-month records
 
-### Step 4 — Multi-Source Integration
-A rule-based integration replicates typical statistical office procedures:
-- **Turnover**: administrative → accounting → survey
-- **Employees**: administrative → survey
-- **Costs / wage bill**: accounting preferred
-- **Investment / IT spending**: survey only
+### Step 3 — Multi-Source Integration
+For each firm × month:
+- turnover precedence rules
+- employment precedence rules
+- consistency checks
+- generation of firm-level indicators
 
-All conflicts are recorded in diagnostic tables.
+### Step 4 — Derived Indicators
+Computed at firm level:
+- turnover YoY growth
+- monthly employment growth
+- labor productivity
+- simple seasonal index
 
-### Step 5 — Data Quality Checks
-- Missingness summaries
-- Range and distribution comparisons
-- Cross-source coherence checks
-- Internal consistency ratios (e.g., costs/turnover)
+Computed at sector/region level:
+- total turnover
+- average turnover per firm
+- total employees
+- productivity aggregates
+- firm counts
 
-### Step 6 — Indicator Computation
-Indicators are produced by **sector** and **region**:
-- average & median turnover
-- employment levels
-- investment intensity
-- IT adoption rate
-- wage share (wage_bill / revenue)
-
-### Step 7 — Visualization
-Using `ggplot2`:
+### Step 5 — Visualization
 - firm size distribution
-- turnover distributions across sources
-- sector-level indicator plots
+- sectoral turnover profiles
+- monthly aggregate turnover trends
+Visual outputs stored in `output/figures/`.
 
-## 5. Integration Pipeline — Harmonization & Economic Indicators
+## 🛠 5. Technologies Used
 
-This section provides a concise, recruiter-friendly overview of the core integration logic implemented in the project.
+- **R**
+    -`dplyr`, `tidyr` — reshaping, joins, aggregation
+    - `lubridate` — date manipulation
+    - `ggplot2` — visualization
+    - `readr` — data I/O
+    - `janitor` — column cleaning
+    - `purrr` — functional utilities
+- **renv** for reproducibility
+- Supports **VS Code, RStudio**, and command-line R
 
-### 5.1 Integration Logic
-
-The integration pipeline mirrors common procedures in multi-source business statistics:
-
-**1. Standardization** of keys and classifications
-**2. Matching** accounting → administrative identifiers
-**3. Consolidation** of variable definitions
-**4. Precedence rules** to resolve contradictory information
-**5. Documentation** of decisions and discrepancies
-
-Every integrated variable includes metadata on:
-- original source
-- reliability / completeness
-- whether conflicts were resolved
-
-### 5.2 Harmonization
-
-- All sector variables converted to *NACE Rev.2 style* codes
-- Branch codes mapped using a synthetic lookup
-- Region codes normalized to consistent formats
-
-### 5.3 Economic Indicator Framework
-
-The integrated dataset supports robust statistical indicators:
-
-| **Indicator**	| Description |
-|---------------|-------------|
-| **Structural turnover** |	Sectoral & regional aggregates |
-| **Employment structure** | Workforce distribution, mean/median values |
-| **Investment intensity** | Investment / turnover |
-| **IT adoption** | Share of firms with reported IT spending |
-| **Wage share** | wage_bill / revenue |
-
-The goal is to replicate analytical outputs found in structural business statistics or enterprise statistics programs.
-
-## 6. Technologies Used
-
-**R (>=4.4)**
-- `dplyr`, `tidyr` — data wrangling
-- `readr` — I/O
-- `stringr` — cleaning
-- `purrr` — applied pipelines
-- `ggplot2` — visualization
-- `janitor` — data standardization
-
-The project runs identically in:
-- VS Code
-- RStudio
-- Terminal R sessions
-
-## 7. How to Run the Pipeline
+## ▶️ 6. How to Run the Pipeline
 ```r
-# 1. Generate synthetic datasets
+# 1. Generate synthetic data
 source("R/01_generate_synthetic_data.R")
 
-# 2. Clean datasets
+# 2. Clean & validate
 source("R/02_clean_and_validate_data.R")
 
-# 3. Integrate data sources
-source("R/03_integration_pipeline.R")
+# 3. Integrate sources & build indicators
+source("R/03_integrate_sources.R")
 
-# 4. Compute indicators
+# 4. Compute sectoral and regional aggregates
 source("R/04_compute_indicators.R")
 
-# 5. Visualize results
+# 5. Produce visualizations
 source("R/05_visualize_results.R")
 ```
 
-Outputs are written to:
+Outputs appear in:
+- `data/clean/`
 - `data/processed/`
 - `output/tables/`
 - `output/figures/`
 
-## 8. Possible Extensions
+## 🔭 7. Possible Extensions
 
-- Probabilistic record linkage
-- Time-series extension to multiple years
-- Advanced imputation strategies
-- Consistency benchmarking algorithms
-- Regionalization models
-- Alternative classification systems
+Future enhancements might include:
+- probabilistic record linkage
+- multiple-year panels
+- Monte Carlo simulations
+- machine learning–based imputation
+- benchmarking algorithms for multi-source coherence (e.g. Denton, Chow-Lin)
+- firm-level microdata anonymization techniques
 
-## 9. License
+## 📘 8. License
 
-MIT License
+**MIT License**
 
-## 10. Author
+## 👤 9. Author
 
 **Golib Sanaev**
+Applied Data Scientist & Analyst | ML • Data Analysis • Forecasting • Python • SQL • Econometrics
+
+**GitHub:** [@gsanaev](https://github.com/gsanaev)  
+**Email:** gsanaev80@gmail.com  
+**LinkedIn:** [golib-sanaev](https://linkedin.com/in/golib-sanaev)
+
 
 ## 📚 Citation
 > Sanaev, G. (2025). *Business Data Integration & Economic Indicators Pipeline in R.*  
 > GitHub Repository: [https://github.com/gsanaev/business-data-integration](https://github.com/gsanaev/business-data-integration)
 
----
-
-## 📞 Contact
-
-**GitHub:** [@gsanaev](https://github.com/gsanaev)  
-**Email:** gsanaev80@gmail.com  
-**LinkedIn:** [golib-sanaev](https://linkedin.com/in/golib-sanaev)
