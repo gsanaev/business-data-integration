@@ -4,7 +4,7 @@
 # ---------------------------------------------------------------------
 # This script creates realistic synthetic datasets resembling firm-level
 # and survey-based data used in structural and short-term business
-# statistics (aligned with tasks in E32 & E33).
+# statistics.
 #
 # Output:
 #   data/raw/firms.csv
