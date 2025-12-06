@@ -1,0 +1,20 @@
+# Ignore renv library (local packages)
+renv/library/
+
+# Ignore generated raw and processed data
+data/raw/
+data/clean/
+data/processed/
+
+# Ignore generated outputs
+output/tables/
+output/figures/
+
+# RStudio project caches (if you later use RStudio)
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+
+# VSCode workspace settings
+.vscode/
