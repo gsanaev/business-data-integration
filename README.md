@@ -44,26 +44,43 @@ This project provides a compact but realistic framework to:
 
 ```text
 business-data-integration/
-├── R/
+├── data
+│   ├── clean               # cleaned intermediate data
+│   ├── processed           # unified firm-level panel (analysis-ready)
+│   └── raw                 # synthetic raw datasets (generated)
+├── LICENSE
+├── output
+│   ├── figures             # visualizations
+│   └── tables              # aggregated indicators
+├── R
 │   ├── 01_generate_synthetic_data.R
 │   ├── 02_clean_and_validate_data.R
 │   ├── 03_integrate_sources.R
 │   ├── 04_compute_indicators.R
 │   └── 05_visualize_results.R
-│
-├── data/
-│   ├── raw/        # synthetic raw datasets (generated)
-│   └── clean/      # cleaned intermediate data
-│
-├── data/processed/ # unified firm-level panel (analysis-ready)
-├── output/
-│   ├── tables/     # aggregated indicators
-│   └── figures/    # visualizations
-│
-├── renv.lock
-└── README.md
+├── README.md
+├── renv
+│   ├── activate.R
+│   ├── library
+│   ├── settings.json
+│   └── staging
+└── renv.lock
 ```
 **Reproducibility**: The project uses `renv` for a full dependency snapshot.
+
+**🔄 Reproducibility With** `renv`
+
+This project uses **renv** to ensure that anyone who clones the repository obtains exactly the same R package environment.
+
+Before running the pipeline for the first time, start R inside the project directory and check the environment:
+```r
+renv::status()
+```
+If packages need to be restored, run:
+```r
+renv::restore()
+```
+This guarantees that all scripts operate identically across machines.
 
 ## 🧪 3. Synthetic Data Sources
 
@@ -92,6 +109,16 @@ Panel data for Jan–Dec 2023:
 - `employees`
 - synthetic missingness for interpolation
 - regional & sector attributes copied from the register
+
+**⭐ Industry-Specific Seasonal Patterns (Added Realism)**
+
+The monthly employment dataset includes **sector-specific seasonal variation**, reflecting realistic trends observed in economic statistics:
+- **Retail (G47)** — strong December activity
+- **Accommodation & Food (I55, I56)** — summer employment peaks
+- **Manufacturing (C10, C29)** — mild seasonal movement
+- **Transport (H49)** — steady with slight autumn increases
+
+Seasonality is introduced using multiplicative adjustment factors, producing more realistic monthly employment curves.
 
 ### C) Monthly Turnover Survey
 
@@ -180,6 +207,18 @@ Visual outputs stored in `output/figures/`.
 - Supports **VS Code, RStudio**, and command-line R
 
 ## ▶️ 6. How to Run the Pipeline
+
+**🔧 Before Running the Pipeline**
+
+Start R in the project root and ensure the correct environment is active:
+```r
+renv::status()
+```
+If packages are missing:
+```r
+renv::restore()
+```
+Then proceed with the pipeline steps below.
 ```r
 # 1. Generate synthetic data
 source("R/01_generate_synthetic_data.R")
