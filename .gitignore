@@ -1,20 +1,28 @@
-# Ignore renv library (local packages)
+# Ignore renv library
 renv/library/
 
-# Ignore generated raw and processed data
-data/raw/
-data/clean/
-data/processed/
+# Ignore generated raw and processed data (but keep folder structure)
+data/raw/*
+data/clean/*
+data/processed/*
+!data/raw/.gitkeep
+!data/clean/.gitkeep
+!data/processed/.gitkeep
 
-# Ignore generated outputs
-output/tables/
-output/figures/
+# Ignore generated outputs (but keep folders)
+output/tables/*
+output/figures/*
+!output/tables/.gitkeep
+!output/figures/.gitkeep
 
-# RStudio project caches (if you later use RStudio)
+# RStudio project caches
 .Rproj.user/
 .Rhistory
 .RData
 .Ruserdata
 
-# VSCode workspace settings
+# VSCode settings
 .vscode/
+
+# macOS
+.DS_Store
