@@ -1,43 +1,68 @@
-# ---------------------------
-# renv
-# ---------------------------
+############################################
+# R / renv
+############################################
+
+# renv library (never commit)
 renv/library/
 
-# ---------------------------
-# Data (never commit microdata)
-# ---------------------------
-data/raw/
-data/clean/
-data/processed/
-
-# ---------------------------
-# Outputs
-# ---------------------------
-# Ignore outputs by default
-output/
-
-# But allow example aggregated outputs
-!output/tables/
-!output/figures/
-
-# Ignore temporary files inside outputs if needed
-output/**/*.tmp
-output/**/*.log
-
-# ---------------------------
-# R / RStudio
-# ---------------------------
-.Rproj.user/
+# R session files
 .Rhistory
 .RData
 .Ruserdata
 
-# ---------------------------
+############################################
+# Raw & processed data (generated, confidential)
+############################################
+
+# Ignore all generated data
+data/raw/*
+data/clean/*
+data/processed/*
+
+# Keep folder structure
+!data/raw/
+!data/clean/
+!data/processed/
+
+############################################
+# Outputs
+############################################
+
+# Ignore all outputs by default
+output/*
+
+# Allow folders
+!output/
+!output/tables/
+!output/figures/
+
+# Allow selected example outputs (aggregated & safe)
+!output/tables/*.csv
+!output/figures/*.png
+
+############################################
+# Logs / temporary files
+############################################
+
+*.log
+*.tmp
+
+############################################
+# IDE / editor files
+############################################
+
+# RStudio
+.Rproj.user/
+
 # VS Code
-# ---------------------------
 .vscode/
 
-# ---------------------------
+############################################
+# Operating system
+############################################
+
 # macOS
-# ---------------------------
 .DS_Store
+
+# Windows
+Thumbs.db
