@@ -34,7 +34,7 @@ Such sources differ in:
 This project provides a compact but realistic framework to:
 1. Generate synthetic firm-level source datasets
 2. Clean and validate each dataset
-3 Link identifiers and harmonize classifications
+3. Link identifiers and harmonize classifications
 4. Integrate monthly panels across sources
 5. Compute economic indicators at firm, sector, and regional level
 6. Produce reproducible tables and visualizations
@@ -242,7 +242,22 @@ Outputs appear in:
 - `output/tables/`
 - `output/figures/`
 
-## 🔭 7. Possible Extensions
+## 📈 7. Example Outputs (Committed for Illustration)
+
+To illustrate the results produced by the pipeline, selected
+aggregated tables and figures are committed to this repository.
+
+These outputs reflect typical products of official business statistics
+(e.g. sectoral and regional indicators), while respecting data protection
+and reproducibility principles.
+
+- `output/tables/` — sectoral and regional indicators (aggregated)
+- `output/figures/` — publication-style visualizations
+
+All firm-level microdata remains untracked and is generated
+reproducibly by the pipeline.
+
+## 🔭 8. Possible Extensions
 
 Future enhancements might include:
 - probabilistic record linkage
@@ -252,11 +267,11 @@ Future enhancements might include:
 - benchmarking algorithms for multi-source coherence (e.g. Denton, Chow-Lin)
 - firm-level microdata anonymization techniques
 
-## 📘 8. License
+## 📘 9. License
 
 **MIT License**
 
-## 👤 9. Author
+## 👤 10. Author
 
 **Golib Sanaev**
 Applied Data Scientist & Analyst | ML • Data Analysis • Forecasting • Python • SQL • Econometrics
