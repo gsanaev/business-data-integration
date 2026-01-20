@@ -24,6 +24,11 @@ employment <- employment %>% rename(employees_monthly = employees)
 turnover   <- turnover   %>% rename(turnover_monthly  = turnover)
 firms      <- firms      %>% rename(employees_firm    = employees)
 
+# Remove duplicated firm attributes before the join ---------------------
+
+employment <- employment %>% select(-nace_code, -region_code)
+turnover   <- turnover   %>% select(-nace_code, -region_code)
+
 # ----------------------------------------------------------------------
 # 2. Build unified monthly panel
 # ----------------------------------------------------------------------
