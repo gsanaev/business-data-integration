@@ -7,87 +7,63 @@
 
 ## 🇩🇪 Kurzbeschreibung
 
-Dieses Projekt demonstriert einen reproduzierbaren Workflow zur Integration und Harmonisierung mehrerer statistischer Unternehmensdatenquellen unter Verwendung synthetischer Daten. Der Fokus liegt auf methodischen Fragestellungen der Unternehmensstatistik, insbesondere auf statistischer Datenaufbereitung, Plausibilisierung, Harmonisierung heterogener Quellen sowie der Erstellung strukturstatistischer Indikatoren.
+Dieses Projekt demonstriert einen reproduzierbaren Workflow zur Harmonisierung, Integration und Auswertung mehrerer statistischer Unternehmensdatenquellen auf Basis synthetischer Daten.
 
-Das Projekt orientiert sich konzeptionell an Herausforderungen moderner amtlicher Statistik, beispielsweise bei der Integration von Unternehmensregisterdaten, Konjunkturindikatoren und strukturstatistischen Informationen. Besonderes Augenmerk liegt auf Nachvollziehbarkeit, Reproduzierbarkeit und modularen statistischen Produktionsprozessen.
+Der Fokus liegt auf methodischen Fragestellungen der Unternehmensstatistik, insbesondere auf statistischer Datenvalidierung, Harmonisierung heterogener Quellen, Multiquellenintegration sowie der Erstellung strukturstatistischer Kennzahlen.
 
-Alle verwendeten Daten sind vollständig synthetisch und dienen ausschließlich der methodischen Demonstration statistischer Workflows.
+Das Projekt orientiert sich konzeptionell an Herausforderungen moderner amtlicher Statistik und dient ausschließlich der methodischen Demonstration statistischer Produktionsprozesse.
 
 ---
 
-This project demonstrates a reproducible workflow for the integration and harmonization of heterogeneous enterprise-statistics data sources using fully synthetic data.
+## 🇬🇧 Overview
 
-The repository is conceptually inspired by methodological challenges commonly encountered in modern official statistics and enterprise statistics production systems, including:
+This repository demonstrates a reproducible workflow for the integration and harmonization of heterogeneous enterprise-statistics data sources using fully synthetic data.
 
-* multisource data integration,
-* statistical editing and plausibility validation,
-* harmonization of identifiers and classifications,
-* inconsistencies across reporting structures,
-* missing and imperfect data,
-* coherence of structural and short-term indicators,
-* and reproducible statistical production workflows.
+The project is conceptually inspired by methodological challenges commonly encountered in modern enterprise statistics and official-statistics production systems, including:
 
-The project uses synthetic enterprise-level datasets to illustrate transparent and reproducible approaches for:
+- multisource data integration,
+- statistical editing and plausibility validation,
+- harmonization of identifiers and classifications,
+- coherence of structural and short-term indicators,
+- handling of imperfect data,
+- and reproducible statistical production workflows.
 
-* generation of statistical source data,
-* statistical editing and validation,
-* harmonization across heterogeneous sources,
-* multisource integration,
-* construction of integrated enterprise panels,
-* computation of structural indicators,
-* and production-oriented analytical outputs.
+The repository illustrates selected stages of a simplified enterprise-statistics production process, including:
 
-All code is implemented in R using a modular workflow structure intended to resemble simplified statistical production processes.
+1. generation of synthetic statistical source data,
+2. statistical editing and validation,
+3. harmonization and multisource integration,
+4. construction of enterprise-level panels,
+5. production of structural indicators,
+6. aggregation of sectoral and regional statistics,
+7. creation of reproducible analytical outputs.
+
+All datasets are fully synthetic and are used exclusively for methodological demonstration purposes.
 
 
 ## 🚀 1. Project Overview
 
-Modern enterprise statistics increasingly rely on the integration of heterogeneous statistical and administrative data sources, including:
+Modern enterprise statistics increasingly rely on the integration of multiple data sources, including business registers, surveys, administrative data, and accounting-based information.
 
-* business registers,
-* structural business statistics,
-* short-term business indicators,
-* accounting-related enterprise information,
-* and longitudinal enterprise-level observations.
+Such sources often differ with respect to:
 
-Such sources frequently differ in:
+- reporting frequency,
+- variable definitions,
+- coverage,
+- completeness,
+- and statistical quality.
 
-* reporting frequency,
-* statistical units,
-* variable definitions,
-* classification structures,
-* timeliness,
-* completeness,
-* and reporting quality.
+This repository provides a simplified methodological demonstration of how heterogeneous enterprise data sources can be:
 
-These differences create methodological challenges for official statistics production systems, particularly regarding:
+1. generated,
+2. validated,
+3. harmonized,
+4. integrated,
+5. transformed into statistical indicators,
+6. aggregated into sectoral and regional outputs,
+7. and documented through reproducible analytical workflows.
 
-* harmonization,
-* coherence,
-* comparability,
-* plausibility validation,
-* and multisource integration.
-
-This project provides a simplified but methodologically oriented demonstration of a reproducible enterprise-statistics workflow using fully synthetic data.
-
-The repository illustrates selected aspects of statistical production processes through:
-
-1. generation of synthetic enterprise-statistics source data,
-2. statistical editing and plausibility validation,
-3. identifier harmonization and classification alignment,
-4. multisource integration of enterprise-level panel data,
-5. construction of structural and short-term indicators,
-6. aggregation of sectoral and regional statistics,
-7. and reproducible production of analytical outputs.
-
-The workflow is intentionally modular and transparent in order to reflect core principles commonly associated with modern statistical production environments, including:
-
-* reproducibility,
-* traceability,
-* methodological transparency,
-* and structured data-processing stages.
-
-The project does not aim to replicate internal official-statistics systems or real production infrastructures. Instead, it serves as a methodological demonstration of selected enterprise-statistics integration and harmonization concepts using synthetic data.
+The project emphasizes methodological transparency, reproducibility, and selected concepts relevant to enterprise-statistics production systems.
 
 
 ## 2. Repository Structure
@@ -223,21 +199,6 @@ The source includes:
 * and simplified reporting inconsistencies.
 
 The dataset is intended to emulate selected coherence and harmonization challenges commonly associated with multisource enterprise statistics integration.
-
----
-
-### Simplified Statistical Unit Assumptions
-
-For methodological transparency, the project currently operates with simplified enterprise structures based primarily on a single firm identifier.
-
-The repository does not yet explicitly model:
-
-* enterprise groups,
-* legal-unit hierarchies,
-* local units,
-* or consolidated reporting structures.
-
-These aspects represent important challenges in real enterprise statistics systems and may be considered as possible future methodological extensions.
 
 
 ## 🔧 4. Statistical Production Workflow & Methods
@@ -379,22 +340,6 @@ Generated outputs are stored in:
 
 * `output/tables/`
 * `output/figures/`
-
----
-
-### Simplified Methodological Scope
-
-The repository intentionally focuses on selected methodological aspects of enterprise-statistics workflows and does not attempt to replicate full official-statistics production systems.
-
-The workflow does not currently implement:
-
-* formal survey weighting,
-* advanced disclosure-control procedures,
-* benchmarking/revision systems,
-* enterprise-group consolidation logic,
-* or institutional production infrastructures.
-
-The primary objective is the transparent methodological illustration of selected harmonization, validation, and multisource integration concepts using synthetic enterprise data.
 
 
 ## 🗂 5. Metadata & Simplified Data Dictionary
@@ -592,7 +537,7 @@ The primary objective of the repository is to demonstrate selected concepts rela
 The project is therefore best understood as a methodological learning and demonstration environment rather than a representation of operational official-statistics systems.
 
 
-## ▶️ 6. How to Run the Pipeline
+## ▶️ 7. How to Run the Pipeline
 
 **🔧 Before Running the Pipeline**
 
@@ -628,7 +573,7 @@ Outputs appear in:
 - `output/tables/`
 - `output/figures/`
 
-## 📈 7. Example Outputs (Committed for Illustration)
+## 📈 8. Example Outputs (Committed for Illustration)
 
 To illustrate the results produced by the pipeline, selected
 aggregated tables and figures are committed to this repository.
@@ -643,7 +588,7 @@ and reproducibility principles.
 All firm-level microdata remains untracked and is generated
 reproducibly by the pipeline.
 
-## 🔭 8. Possible Methodological Extensions
+## 🔭 9. Possible Methodological Extensions
 
 Possible future extensions of the repository may include additional methodological components frequently associated with modern enterprise-statistics and official-statistics production systems.
 
@@ -672,14 +617,14 @@ Further methodological extensions could also include more advanced approaches to
 The repository intentionally prioritizes methodological transparency and reproducibility over implementation complexity. Any future extensions would therefore aim to preserve the modular and reproducible structure of the workflow.
 
 
-## 📘 9. License
+## 📘 10. License
 
 **MIT License**
 
-## 👤 10. Author
+## 👤 11. Author
 
 **Golib Sanaev**
-Applied Data Scientist & Analyst | ML • Data Analysis • Forecasting • Python • SQL • Econometrics
+Economist & Data Analyst | Enterprise Statistics • Econometrics • Data Integration • Reproducible Statistical Workflows
 
 **GitHub:** [@gsanaev](https://github.com/gsanaev)  
 **Email:** gsanaev80@gmail.com  
@@ -687,6 +632,5 @@ Applied Data Scientist & Analyst | ML • Data Analysis • Forecasting • Pyth
 
 
 ## 📚 Citation
-> Sanaev, G. (2025). *BMultisource Enterprise Statistics Integration Workflow in R.*  
+> Sanaev, G. (2025). *Multisource Enterprise Statistics Integration Workflow in R.*  
 > GitHub Repository: [https://github.com/gsanaev/business-data-integration](https://github.com/gsanaev/business-data-integration)
-
