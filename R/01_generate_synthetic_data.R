@@ -3,8 +3,8 @@
 # Synthetic Enterprise Data Generator
 # ---------------------------------------------------------------------
 # This script creates coherent synthetic enterprise datasets resembling
-# register, employment, and turnover sources used in structural and
-# short-term business statistics.
+# register, employment, turnover, and annual accounting sources used
+# in structural and short-term business-statistics workflows.
 #
 # The data-generating process first creates a common latent enterprise
 # reality. Source-specific observations are then derived from that common
@@ -14,6 +14,7 @@
 #   data/raw/firms.csv
 #   data/raw/employment.csv
 #   data/raw/turnover.csv
+#   data/raw/accounting.csv
 #
 # Notes:
 #   - No real data is used; all values are simulated.
@@ -771,7 +772,173 @@ turnover_identity <- identity_truth %>%
   )
 
 # ----------------------------------------------------------------------
-# 10. Attach source identities
+# 10. Generate annual accounting source
+# ----------------------------------------------------------------------
+
+accounting_params <- tibble(
+  nace_code = c(
+    "G47",
+    "C10",
+    "C29",
+    "H49",
+    "I55",
+    "I56"
+  ),
+  accounting_revenue_factor = c(
+    1.01,
+    0.99,
+    1.02,
+    1.00,
+    0.98,
+    1.01
+  ),
+  purchases_share_center = c(
+    0.72,
+    0.58,
+    0.62,
+    0.45,
+    0.40,
+    0.48
+  ),
+  personnel_cost_per_employee = c(
+    38000,
+    45000,
+    55000,
+    42000,
+    34000,
+    32000
+  )
+)
+
+accounting <- annual_truth %>%
+  select(
+    truth_firm_id,
+    year,
+    nace_code,
+    employees_true,
+    annual_turnover_true
+  ) %>%
+  left_join(
+    accounting_params,
+    by = "nace_code"
+  ) %>%
+  mutate(
+    reference_year = year,
+
+    # Accounting operating revenue is related to statistical turnover,
+    # but is deliberately not treated as an identical concept.
+    operating_revenue_complete = round(
+      annual_turnover_true *
+        accounting_revenue_factor *
+        exp(
+          rnorm(
+            n(),
+            mean = 0,
+            sd = 0.020
+          )
+        ),
+      2
+    ),
+
+    purchases_share = pmin(
+      0.85,
+      pmax(
+        0.20,
+        purchases_share_center +
+          rnorm(
+            n(),
+            mean = 0,
+            sd = 0.025
+          )
+      )
+    ),
+
+    purchases_goods_services_complete = round(
+      operating_revenue_complete *
+        purchases_share,
+      2
+    ),
+
+    personnel_expense_complete = round(
+      employees_true *
+        personnel_cost_per_employee *
+        exp(
+          rnorm(
+            n(),
+            mean = 0,
+            sd = 0.030
+          )
+        ),
+      2
+    ),
+
+    # Controlled source-specific imperfections.
+    operating_revenue = ifelse(
+      runif(n()) < 0.01,
+      NA,
+      operating_revenue_complete
+    ),
+
+    purchases_goods_services = ifelse(
+      runif(n()) < 0.005,
+      -purchases_goods_services_complete,
+      purchases_goods_services_complete
+    ),
+
+    personnel_expense = ifelse(
+      runif(n()) < 0.01,
+      NA,
+      personnel_expense_complete
+    )
+  ) %>%
+  select(
+    truth_firm_id,
+    reference_year,
+    nace_code,
+    operating_revenue_complete,
+    purchases_goods_services_complete,
+    personnel_expense_complete,
+    operating_revenue,
+    purchases_goods_services,
+    personnel_expense
+  )
+
+accounting_identity <- identity_truth %>%
+  transmute(
+    truth_firm_id,
+
+    accounting_source_id = sample(
+      make_source_id(
+        "ACC",
+        n_firms
+      )
+    ),
+
+    business_id = drop_identifier(
+      business_id,
+      probability = 0.10
+    ),
+
+    enterprise_name = perturb_company_name(
+      enterprise_name
+    ),
+
+    street = perturb_street(
+      street
+    ),
+
+    postal_code,
+
+    city = perturb_city(
+      city
+    ),
+
+    legal_form,
+    nace_code
+  )
+
+# ----------------------------------------------------------------------
+# 11. Attach source identities
 # ----------------------------------------------------------------------
 
 firms_with_identity <- firms_inconsistent %>%
@@ -792,8 +959,17 @@ turnover_with_identity <- turnover %>%
     by = "truth_firm_id"
   )
 
+accounting_with_identity <- accounting %>%
+  left_join(
+    accounting_identity,
+    by = c(
+      "truth_firm_id",
+      "nace_code"
+    )
+  )
+
 # ----------------------------------------------------------------------
-# 11. Build operational source datasets
+# 12. Build operational source datasets
 # ----------------------------------------------------------------------
 
 firms_operational <- firms_with_identity %>%
@@ -845,8 +1021,24 @@ turnover_operational <- turnover_with_identity %>%
     turnover
   )
 
+accounting_operational <- accounting_with_identity %>%
+  select(
+    accounting_source_id,
+    business_id,
+    enterprise_name,
+    street,
+    postal_code,
+    city,
+    legal_form,
+    reference_year,
+    nace_code,
+    operating_revenue,
+    purchases_goods_services,
+    personnel_expense
+  )
+
 # ----------------------------------------------------------------------
-# 12. Build hidden truth datasets
+# 13. Build hidden truth datasets
 # ----------------------------------------------------------------------
 
 enterprise_truth <- identity_truth %>%
@@ -882,6 +1074,13 @@ linkage_truth <- bind_rows(
     transmute(
       source = "turnover",
       source_record_id = turnover_source_id,
+      truth_firm_id
+    ),
+
+  accounting_identity %>%
+    transmute(
+      source = "accounting",
+      source_record_id = accounting_source_id,
       truth_firm_id
     )
 )
@@ -943,11 +1142,53 @@ value_truth <- bind_rows(
       truth_value = as.numeric(
         turnover_source_complete
       )
+    ),
+
+  accounting_with_identity %>%
+    transmute(
+      source = "accounting",
+      source_record_id = accounting_source_id,
+      truth_firm_id,
+      reference_period = as.character(
+        reference_year
+      ),
+      variable = "operating_revenue",
+      truth_value = as.numeric(
+        operating_revenue_complete
+      )
+    ),
+
+  accounting_with_identity %>%
+    transmute(
+      source = "accounting",
+      source_record_id = accounting_source_id,
+      truth_firm_id,
+      reference_period = as.character(
+        reference_year
+      ),
+      variable = "purchases_goods_services",
+      truth_value = as.numeric(
+        purchases_goods_services_complete
+      )
+    ),
+
+  accounting_with_identity %>%
+    transmute(
+      source = "accounting",
+      source_record_id = accounting_source_id,
+      truth_firm_id,
+      reference_period = as.character(
+        reference_year
+      ),
+      variable = "personnel_expense",
+      truth_value = as.numeric(
+        personnel_expense_complete
+      )
     )
 )
 
 # ----------------------------------------------------------------------
-# 13. Write operational and hidden datasets
+# 14. Write operational and hidden datasets
 # ----------------------------------------------------------------------
 
 write_csv(
@@ -963,6 +1204,11 @@ write_csv(
 write_csv(
   turnover_operational,
   "data/raw/turnover.csv"
+)
+
+write_csv(
+  accounting_operational,
+  "data/raw/accounting.csv"
 )
 
 write_csv(

@@ -19,6 +19,7 @@
 #   data/clean/firms_clean.csv
 #   data/clean/employment_clean.csv
 #   data/clean/turnover_clean.csv
+#   data/clean/accounting_clean.csv
 # =====================================================================
 
 library(dplyr)
@@ -51,6 +52,11 @@ employment_raw <- read_csv(
 
 turnover_raw <- read_csv(
   "data/raw/turnover.csv",
+  show_col_types = FALSE
+)
+
+accounting_raw <- read_csv(
+  "data/raw/accounting.csv",
   show_col_types = FALSE
 )
 
@@ -98,6 +104,31 @@ if (nrow(duplicate_turnover_keys) > 0) {
   stop(
     "Duplicate turnover source entity-month keys detected: ",
     nrow(duplicate_turnover_keys)
+  )
+}
+
+duplicate_accounting_keys <- accounting_raw %>%
+  count(
+    accounting_source_id,
+    reference_year
+  ) %>%
+  filter(n > 1)
+
+if (nrow(duplicate_accounting_keys) > 0) {
+  stop(
+    "Duplicate accounting source entity-year keys detected: ",
+    nrow(duplicate_accounting_keys)
+  )
+}
+
+if (
+  any(
+    !accounting_raw$reference_year %in%
+      2023:2025
+  )
+) {
+  stop(
+    "Unexpected reference year detected in accounting source."
   )
 }
 
@@ -405,7 +436,131 @@ turnover_clean <- turnover_raw %>%
   )
 
 # ----------------------------------------------------------------------
-# 6. Post-validation assertions
+# 6. Validate annual accounting source
+# ----------------------------------------------------------------------
+
+message("Validating annual accounting source...")
+
+accounting_clean <- accounting_raw %>%
+  clean_names() %>%
+  mutate(
+    reference_year =
+      as.integer(reference_year),
+
+    operating_revenue_raw =
+      as.numeric(operating_revenue),
+
+    purchases_goods_services_raw =
+      as.numeric(purchases_goods_services),
+
+    personnel_expense_raw =
+      as.numeric(personnel_expense),
+
+    # --------------------------------------------------------------
+    # Operating revenue
+    # --------------------------------------------------------------
+    operating_revenue_status = case_when(
+      is.na(operating_revenue_raw) ~
+        "review_required",
+
+      operating_revenue_raw <= 0 ~
+        "rejected",
+
+      TRUE ~
+        "accepted"
+    ),
+
+    operating_revenue_rule_id = case_when(
+      is.na(operating_revenue_raw) ~
+        "ACC_REV_MISSING",
+
+      operating_revenue_raw <= 0 ~
+        "ACC_REV_NONPOSITIVE",
+
+      TRUE ~
+        NA_character_
+    ),
+
+    operating_revenue = case_when(
+      operating_revenue_status ==
+        "accepted" ~
+        operating_revenue_raw,
+
+      TRUE ~
+        NA_real_
+    ),
+
+    # --------------------------------------------------------------
+    # Purchases of goods and services
+    # --------------------------------------------------------------
+    purchases_status = case_when(
+      is.na(purchases_goods_services_raw) ~
+        "review_required",
+
+      purchases_goods_services_raw <= 0 ~
+        "rejected",
+
+      TRUE ~
+        "accepted"
+    ),
+
+    purchases_rule_id = case_when(
+      is.na(purchases_goods_services_raw) ~
+        "ACC_PURCHASES_MISSING",
+
+      purchases_goods_services_raw <= 0 ~
+        "ACC_PURCHASES_NONPOSITIVE",
+
+      TRUE ~
+        NA_character_
+    ),
+
+    purchases_goods_services = case_when(
+      purchases_status ==
+        "accepted" ~
+        purchases_goods_services_raw,
+
+      TRUE ~
+        NA_real_
+    ),
+
+    # --------------------------------------------------------------
+    # Personnel expense
+    # --------------------------------------------------------------
+    personnel_expense_status = case_when(
+      is.na(personnel_expense_raw) ~
+        "review_required",
+
+      personnel_expense_raw <= 0 ~
+        "rejected",
+
+      TRUE ~
+        "accepted"
+    ),
+
+    personnel_expense_rule_id = case_when(
+      is.na(personnel_expense_raw) ~
+        "ACC_PERSONNEL_MISSING",
+
+      personnel_expense_raw <= 0 ~
+        "ACC_PERSONNEL_NONPOSITIVE",
+
+      TRUE ~
+        NA_character_
+    ),
+
+    personnel_expense = case_when(
+      personnel_expense_status ==
+        "accepted" ~
+        personnel_expense_raw,
+
+      TRUE ~
+        NA_real_
+    )
+  )
+
+# ----------------------------------------------------------------------
+# 7. Post-validation assertions
 # ----------------------------------------------------------------------
 
 message("Checking analytical values after QA treatment...")
@@ -454,8 +609,41 @@ if (
   )
 }
 
+if (
+  any(
+    accounting_clean$operating_revenue <= 0,
+    na.rm = TRUE
+  )
+) {
+  stop(
+    "Non-positive analytical accounting operating revenue remains after QA."
+  )
+}
+
+if (
+  any(
+    accounting_clean$purchases_goods_services <= 0,
+    na.rm = TRUE
+  )
+) {
+  stop(
+    "Non-positive analytical accounting purchases remain after QA."
+  )
+}
+
+if (
+  any(
+    accounting_clean$personnel_expense <= 0,
+    na.rm = TRUE
+  )
+) {
+  stop(
+    "Non-positive analytical accounting personnel expense remains after QA."
+  )
+}
+
 # ----------------------------------------------------------------------
-# 7. Report QA status counts
+# 8. Report QA status counts
 # ----------------------------------------------------------------------
 
 message("Register employment QA statuses:")
@@ -482,8 +670,26 @@ print(
     count(turnover_status)
 )
 
+message("Accounting operating revenue QA statuses:")
+print(
+  accounting_clean %>%
+    count(operating_revenue_status)
+)
+
+message("Accounting purchases QA statuses:")
+print(
+  accounting_clean %>%
+    count(purchases_status)
+)
+
+message("Accounting personnel expense QA statuses:")
+print(
+  accounting_clean %>%
+    count(personnel_expense_status)
+)
+
 # ----------------------------------------------------------------------
-# 8. Write validated analytical datasets
+# 9. Write validated analytical datasets
 # ----------------------------------------------------------------------
 
 write_csv(
@@ -499,6 +705,11 @@ write_csv(
 write_csv(
   turnover_clean,
   "data/clean/turnover_clean.csv"
+)
+
+write_csv(
+  accounting_clean,
+  "data/clean/accounting_clean.csv"
 )
 
 message("Validation and plausibility processing completed successfully.")
