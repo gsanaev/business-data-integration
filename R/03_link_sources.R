@@ -57,6 +57,11 @@ turnover <- read_csv(
   show_col_types = FALSE
 )
 
+accounting <- read_csv(
+  "data/clean/accounting_clean.csv",
+  show_col_types = FALSE
+)
+
 # ----------------------------------------------------------------------
 # 3. Validate the register reference identifier
 # ----------------------------------------------------------------------
@@ -117,6 +122,18 @@ employment_entities <- employment %>%
 turnover_entities <- turnover %>%
   distinct(
     turnover_source_id,
+    business_id,
+    enterprise_name,
+    street,
+    postal_code,
+    city,
+    legal_form,
+    nace_code
+  )
+
+accounting_entities <- accounting %>%
+  distinct(
+    accounting_source_id,
     business_id,
     enterprise_name,
     street,
@@ -519,7 +536,127 @@ turnover_links <- turnover_base %>%
   )
 
 # ----------------------------------------------------------------------
-# 11. Build unified linkage crosswalk
+# 11. Deterministic accounting linkage
+# ----------------------------------------------------------------------
+
+accounting_base <- accounting_entities %>%
+  left_join(
+    register_lookup,
+    by = "business_id"
+  ) %>%
+  mutate(
+    linkage_status = case_when(
+      is.na(business_id) ~
+        "unmatched_missing_identifier",
+
+      !is.na(canonical_firm_id) ~
+        "matched_deterministic",
+
+      TRUE ~
+        "unmatched_identifier_not_found"
+    ),
+
+    linkage_method = case_when(
+      linkage_status ==
+        "matched_deterministic" ~
+        "business_id_exact",
+
+      TRUE ~
+        NA_character_
+    )
+  )
+
+# ----------------------------------------------------------------------
+# 12. Similarity linkage for unresolved accounting entities
+# ----------------------------------------------------------------------
+
+accounting_similarity <- rank_similarity_candidates(
+  source_entities =
+    accounting_entities %>%
+    filter(
+      is.na(business_id)
+    ),
+
+  source_id_column =
+    "accounting_source_id",
+
+  register_entities =
+    register_entities
+)
+
+accounting_links <- accounting_base %>%
+  left_join(
+    accounting_similarity$decisions,
+    by = c(
+      "accounting_source_id" =
+        "source_record_id"
+    )
+  ) %>%
+  mutate(
+    register_id = case_when(
+      linkage_status ==
+        "unmatched_missing_identifier" &
+        similarity_status ==
+          "matched_similarity" ~
+        candidate_register_id,
+
+      TRUE ~
+        register_id
+    ),
+
+    canonical_firm_id = case_when(
+      linkage_status ==
+        "unmatched_missing_identifier" &
+        similarity_status ==
+          "matched_similarity" ~
+        candidate_canonical_firm_id,
+
+      TRUE ~
+        canonical_firm_id
+    ),
+
+    linkage_status = case_when(
+      linkage_status ==
+        "unmatched_missing_identifier" &
+        !is.na(similarity_status) ~
+        similarity_status,
+
+      TRUE ~
+        linkage_status
+    ),
+
+    linkage_method = case_when(
+      linkage_status ==
+        "matched_similarity" ~
+        "weighted_edit_similarity",
+
+      TRUE ~
+        linkage_method
+    )
+  )
+
+# ----------------------------------------------------------------------
+# 13. Prepare accounting linkage crosswalk
+# ----------------------------------------------------------------------
+
+accounting_crosswalk <- accounting_links %>%
+  transmute(
+    source = "accounting",
+    source_record_id =
+      accounting_source_id,
+    business_id,
+    canonical_firm_id,
+    register_id,
+    candidate_register_id,
+    linkage_status,
+    linkage_method,
+    top_similarity_score,
+    second_similarity_score,
+    similarity_margin
+  )
+
+# ----------------------------------------------------------------------
+# 14. Build unified linkage crosswalk
 # ----------------------------------------------------------------------
 
 register_links <- register_entities %>%
@@ -576,11 +713,12 @@ turnover_crosswalk <- turnover_links %>%
 linkage_crosswalk <- bind_rows(
   register_links,
   employment_crosswalk,
-  turnover_crosswalk
+  turnover_crosswalk,
+  accounting_crosswalk
 )
 
 # ----------------------------------------------------------------------
-# 12. Preserve candidate-level evidence
+# 15. Preserve candidate-level evidence
 # ----------------------------------------------------------------------
 
 employment_candidates <-
@@ -595,9 +733,16 @@ turnover_candidates <-
     source = "turnover"
   )
 
+accounting_candidates <-
+  accounting_similarity$candidates %>%
+  mutate(
+    source = "accounting"
+  )
+
 linkage_candidates <- bind_rows(
   employment_candidates,
-  turnover_candidates
+  turnover_candidates,
+  accounting_candidates
 ) %>%
   select(
     source,
@@ -605,7 +750,7 @@ linkage_candidates <- bind_rows(
   )
 
 # ----------------------------------------------------------------------
-# 13. Report linkage results
+# 16. Report linkage results
 # ----------------------------------------------------------------------
 
 message("Employment linkage:")
@@ -620,8 +765,14 @@ print(
     count(linkage_status)
 )
 
+message("Accounting linkage:")
+print(
+  accounting_crosswalk %>%
+    count(linkage_status)
+)
+
 # ----------------------------------------------------------------------
-# 14. Write linkage outputs
+# 17. Write linkage outputs
 # ----------------------------------------------------------------------
 
 write_csv(

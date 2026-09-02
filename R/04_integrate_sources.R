@@ -10,6 +10,7 @@
 #
 # Output:
 #   data/processed/panel_data.csv
+#   data/processed/accounting_annual.csv
 # =====================================================================
 
 library(dplyr)
@@ -38,6 +39,11 @@ employment <- read_csv(
 
 turnover <- read_csv(
   "data/clean/turnover_clean.csv",
+  show_col_types = FALSE
+)
+
+accounting <- read_csv(
+  "data/clean/accounting_clean.csv",
   show_col_types = FALSE
 )
 
@@ -80,6 +86,16 @@ turnover_map <- crosswalk %>%
     canonical_firm_id
   )
 
+accounting_map <- crosswalk %>%
+  filter(
+    source == "accounting",
+    !is.na(canonical_firm_id)
+  ) %>%
+  transmute(
+    accounting_source_id = source_record_id,
+    canonical_firm_id
+  )
+
 # ----------------------------------------------------------------------
 # 3. Attach canonical identifiers
 # ----------------------------------------------------------------------
@@ -102,6 +118,12 @@ turnover_linked <- turnover %>%
     by = "turnover_source_id"
   )
 
+accounting_linked <- accounting %>%
+  inner_join(
+    accounting_map,
+    by = "accounting_source_id"
+  )
+
 # ----------------------------------------------------------------------
 # 4. Report linkage coverage entering integration
 # ----------------------------------------------------------------------
@@ -116,7 +138,7 @@ common_firms <- Reduce(
 )
 
 message(
-  "Canonical enterprises available in all three sources: ",
+  "Canonical enterprises available in register, employment, and turnover: ",
   length(common_firms)
 )
 
@@ -130,8 +152,60 @@ message(
   n_distinct(turnover_linked$canonical_firm_id)
 )
 
+message(
+  "Accounting enterprises linked: ",
+  n_distinct(accounting_linked$canonical_firm_id)
+)
+
 # ----------------------------------------------------------------------
-# 5. Prepare source-specific analytical columns
+# 5. Prepare annual accounting analytical dataset
+# ----------------------------------------------------------------------
+
+accounting_annual <- accounting_linked %>%
+  transmute(
+    canonical_firm_id,
+    accounting_source_id,
+    reference_year,
+    nace_code_accounting =
+      nace_code,
+
+    operating_revenue_raw,
+    operating_revenue_status,
+    operating_revenue_rule_id,
+    operating_revenue,
+
+    purchases_goods_services_raw,
+    purchases_status,
+    purchases_rule_id,
+    purchases_goods_services,
+
+    personnel_expense_raw,
+    personnel_expense_status,
+    personnel_expense_rule_id,
+    personnel_expense
+  ) %>%
+  arrange(
+    canonical_firm_id,
+    reference_year
+  )
+
+if (
+  anyDuplicated(
+    accounting_annual[
+      c(
+        "canonical_firm_id",
+        "reference_year"
+      )
+    ]
+  )
+) {
+  stop(
+    "Duplicate canonical enterprise-year keys detected in accounting data."
+  )
+}
+
+# ----------------------------------------------------------------------
+# 6. Prepare monthly source-specific analytical columns
 # ----------------------------------------------------------------------
 
 identity_columns <- c(
@@ -176,7 +250,7 @@ firms_panel <- firms_linked %>%
   )
 
 # ----------------------------------------------------------------------
-# 6. Build unified monthly panel
+# 7. Build unified monthly panel
 # ----------------------------------------------------------------------
 
 message("Integrating linked datasets...")
@@ -208,7 +282,7 @@ panel <- employment_panel %>%
   )
 
 # ----------------------------------------------------------------------
-# 7. Derive current analytical indicators
+# 8. Derive current analytical indicators
 # ----------------------------------------------------------------------
 
 message("Constructing monthly analytical indicators...")
@@ -252,7 +326,7 @@ panel <- panel %>%
   ungroup()
 
 # ----------------------------------------------------------------------
-# 8. Consistency checks
+# 9. Consistency checks
 # ----------------------------------------------------------------------
 
 implausible_prod <- panel %>%
@@ -287,12 +361,17 @@ if (
 }
 
 # ----------------------------------------------------------------------
-# 9. Write analysis-ready panel
+# 10. Write analysis-ready datasets
 # ----------------------------------------------------------------------
 
 write_csv(
   panel,
   "data/processed/panel_data.csv"
+)
+
+write_csv(
+  accounting_annual,
+  "data/processed/accounting_annual.csv"
 )
 
 message("Linked-source integration completed successfully.")
