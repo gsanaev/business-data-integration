@@ -18,11 +18,16 @@ renv/library/
 data/raw/*
 data/clean/*
 data/processed/*
+data/truth/*
 
 # Keep folder structure
 !data/raw/
 !data/clean/
 !data/processed/
+!data/truth/
+
+# Keep placeholder files
+!data/truth/.gitkeep
 
 ############################################
 # Outputs

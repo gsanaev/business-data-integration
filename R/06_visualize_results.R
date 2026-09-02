@@ -1,5 +1,5 @@
 # =====================================================================
-# 05_visualize_results.R
+# 06_visualize_results.R
 # Visualization of Core Structural & Time-Series Indicators
 # =====================================================================
 
@@ -28,7 +28,7 @@ indicators_sector <- read_csv("output/tables/indicators_sector.csv", show_col_ty
 # ----------------------------------------------------------------------
 
 p_firm_size <- panel %>%
-  group_by(firm_id) %>%
+  group_by(canonical_firm_id) %>%
   summarise(
     avg_employees = mean(employees_monthly, na.rm = TRUE),
     .groups = "drop"

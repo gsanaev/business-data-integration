@@ -60,63 +60,44 @@ turnover_raw <- read_csv(
 
 message("Validating source structures...")
 
-# Firm identifiers must be unique in the register-style source.
+# Register identifiers must be unique within the register-style source.
 duplicate_firms <- firms_raw %>%
-  count(firm_id) %>%
+  count(register_id) %>%
   filter(n > 1)
 
 if (nrow(duplicate_firms) > 0) {
   stop(
-    "Duplicate firm IDs detected in firms.csv: ",
+    "Duplicate register IDs detected in firms.csv: ",
     nrow(duplicate_firms)
   )
 }
 
-# Monthly sources must contain one observation per firm-month.
+# Monthly sources must contain one observation per source entity-month.
 duplicate_employment_keys <- employment_raw %>%
-  count(firm_id, month) %>%
+  count(
+    employment_source_id,
+    month
+  ) %>%
   filter(n > 1)
 
 if (nrow(duplicate_employment_keys) > 0) {
   stop(
-    "Duplicate firm-month keys detected in employment.csv: ",
+    "Duplicate employment source entity-month keys detected: ",
     nrow(duplicate_employment_keys)
   )
 }
 
 duplicate_turnover_keys <- turnover_raw %>%
-  count(firm_id, month) %>%
+  count(
+    turnover_source_id,
+    month
+  ) %>%
   filter(n > 1)
 
 if (nrow(duplicate_turnover_keys) > 0) {
   stop(
-    "Duplicate firm-month keys detected in turnover.csv: ",
+    "Duplicate turnover source entity-month keys detected: ",
     nrow(duplicate_turnover_keys)
-  )
-}
-
-# Monthly source identifiers must exist in the register-style source.
-employment_missing_ids <- setdiff(
-  employment_raw$firm_id,
-  firms_raw$firm_id
-)
-
-turnover_missing_ids <- setdiff(
-  turnover_raw$firm_id,
-  firms_raw$firm_id
-)
-
-if (length(employment_missing_ids) > 0) {
-  stop(
-    "Employment source contains IDs not found in firms.csv: ",
-    length(employment_missing_ids)
-  )
-}
-
-if (length(turnover_missing_ids) > 0) {
-  stop(
-    "Turnover source contains IDs not found in firms.csv: ",
-    length(turnover_missing_ids)
   )
 }
 
@@ -267,7 +248,7 @@ employment_clean <- employment_raw %>%
     employees_monthly_raw = as.numeric(employees)
   ) %>%
   group_by(
-    firm_id,
+    employment_source_id,
     year
   ) %>%
   mutate(
@@ -288,7 +269,7 @@ employment_clean <- employment_raw %>%
         2 * firm_year_emp_median
   ) %>%
   ungroup() %>%
-  group_by(firm_id) %>%
+  group_by(employment_source_id) %>%
   arrange(
     month,
     .by_group = TRUE
@@ -365,7 +346,7 @@ turnover_clean <- turnover_raw %>%
     month = as.Date(month),
     turnover_monthly_raw = as.numeric(turnover)
   ) %>%
-  group_by(firm_id) %>%
+  group_by(turnover_source_id) %>%
   arrange(
     month,
     .by_group = TRUE

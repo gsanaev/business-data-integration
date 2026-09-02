@@ -29,10 +29,13 @@ library(dplyr)
 library(tidyr)
 library(readr)
 
+source("R/helpers/synthetic_identity.R")
+
 set.seed(2025)
 
-# Ensure output directory exists ---------------------------------------
+# Ensure output directories exist ------------------------------------
 dir.create("data/raw", showWarnings = FALSE, recursive = TRUE)
+dir.create("data/truth", showWarnings = FALSE, recursive = TRUE)
 
 # ----------------------------------------------------------------------
 # 1. Create reference structures
@@ -91,7 +94,7 @@ legal_forms <- tibble(
 n_firms <- 1500
 
 firm_truth <- tibble(
-  firm_id = sprintf("F%05d", 1:n_firms),
+  truth_firm_id = sprintf("F%05d", 1:n_firms),
   region_code = sample(
     regions$region_code,
     n_firms,
@@ -171,10 +174,10 @@ firm_truth <- tibble(
 years <- 2023:2025
 
 annual_truth <- expand_grid(
-  firm_id = firm_truth$firm_id,
+  truth_firm_id = firm_truth$truth_firm_id,
   year = years
 ) %>%
-  left_join(firm_truth, by = "firm_id") %>%
+  left_join(firm_truth, by = "truth_firm_id") %>%
   mutate(
     years_since_2023 = year - 2023L,
 
@@ -215,7 +218,7 @@ annual_truth <- expand_grid(
 register_2025 <- annual_truth %>%
   filter(year == 2025) %>%
   transmute(
-    firm_id,
+    truth_firm_id,
     region_code,
     nace_code,
     legal_form,
@@ -226,12 +229,12 @@ register_2025 <- annual_truth %>%
 revenue_2024 <- annual_truth %>%
   filter(year == 2024) %>%
   transmute(
-    firm_id,
+    truth_firm_id,
     revenue_true_2024 = annual_turnover_true
   )
 
 firms <- register_2025 %>%
-  left_join(revenue_2024, by = "firm_id") %>%
+  left_join(revenue_2024, by = "truth_firm_id") %>%
   mutate(
     register_reference_year = 2025L,
     revenue_reference_year = 2024L,
@@ -253,7 +256,7 @@ firms <- register_2025 %>%
     )
   ) %>%
   select(
-    firm_id,
+    truth_firm_id,
     region_code,
     nace_code,
     legal_form,
@@ -268,6 +271,10 @@ firms <- register_2025 %>%
 
 firms_inconsistent <- firms %>%
   mutate(
+    # Preserve complete source values for later method evaluation.
+    employees_register_complete = employees,
+    revenue_last_year_complete = revenue_last_year,
+
     # 2% missing employment values.
     employees = ifelse(
       runif(n()) < 0.02,
@@ -366,7 +373,7 @@ turnover_seasonality <- lapply(
 # ----------------------------------------------------------------------
 
 employment <- expand_grid(
-  firm_id = firm_truth$firm_id,
+  truth_firm_id = firm_truth$truth_firm_id,
   month = months
 ) %>%
   mutate(
@@ -376,20 +383,20 @@ employment <- expand_grid(
   left_join(
     annual_truth %>%
       select(
-        firm_id,
+        truth_firm_id,
         year,
         employees_true
       ),
-    by = c("firm_id", "year")
+    by = c("truth_firm_id", "year")
   ) %>%
   left_join(
     firm_truth %>%
       select(
-        firm_id,
+        truth_firm_id,
         nace_code,
         region_code
       ),
-    by = "firm_id"
+    by = "truth_firm_id"
   ) %>%
   mutate(
     seasonal_factor = mapply(
@@ -407,7 +414,7 @@ employment <- expand_grid(
     employment_weight =
       seasonal_factor * monthly_noise
   ) %>%
-  group_by(firm_id, year) %>%
+  group_by(truth_firm_id, year) %>%
   mutate(
     # Re-normalise firm-year fluctuations so annual average employment
     # remains close to the latent annual employment level.
@@ -423,6 +430,9 @@ employment <- expand_grid(
   ) %>%
   ungroup() %>%
   mutate(
+    # Preserve the complete source value before injected imperfections.
+    employees_source_complete = employees,
+
     # Rare reporting spikes.
     employees = ifelse(
       runif(n()) < 0.003,
@@ -441,11 +451,12 @@ employment <- expand_grid(
     )
   ) %>%
   select(
-    firm_id,
+    truth_firm_id,
     month,
     nace_code,
     region_code,
     seasonal_factor,
+    employees_source_complete,
     employees
   )
 
@@ -454,7 +465,7 @@ employment <- expand_grid(
 # ----------------------------------------------------------------------
 
 turnover <- expand_grid(
-  firm_id = firm_truth$firm_id,
+  truth_firm_id = firm_truth$truth_firm_id,
   month = months
 ) %>%
   mutate(
@@ -464,20 +475,20 @@ turnover <- expand_grid(
   left_join(
     annual_truth %>%
       select(
-        firm_id,
+        truth_firm_id,
         year,
         annual_turnover_true
       ),
-    by = c("firm_id", "year")
+    by = c("truth_firm_id", "year")
   ) %>%
   left_join(
     firm_truth %>%
       select(
-        firm_id,
+        truth_firm_id,
         nace_code,
         region_code
       ),
-    by = "firm_id"
+    by = "truth_firm_id"
   ) %>%
   mutate(
     seasonal_factor = mapply(
@@ -495,7 +506,7 @@ turnover <- expand_grid(
     allocation_weight =
       seasonal_factor * allocation_noise
   ) %>%
-  group_by(firm_id, year) %>%
+  group_by(truth_firm_id, year) %>%
   mutate(
     monthly_share =
       allocation_weight / sum(allocation_weight),
@@ -513,6 +524,9 @@ turnover <- expand_grid(
   ) %>%
   ungroup() %>%
   mutate(
+    # Preserve the complete source value before injected imperfections.
+    turnover_source_complete = turnover,
+
     # Rare sign/reporting errors.
     turnover = ifelse(
       runif(n()) < 0.002,
@@ -528,7 +542,303 @@ turnover <- expand_grid(
     )
   ) %>%
   select(
-    firm_id,
+    truth_firm_id,
+    month,
+    nace_code,
+    region_code,
+    turnover_source_complete,
+    turnover
+  )
+
+# ----------------------------------------------------------------------
+# 8. Create stable synthetic enterprise identities
+# ----------------------------------------------------------------------
+
+location_lookup <- tibble(
+  region_code = regions$region_code,
+  city = c(
+    "Frankfurt am Main",
+    "Wiesbaden",
+    "Darmstadt",
+    "Mainz",
+    "Kassel",
+    "Mannheim",
+    "Heidelberg",
+    "Karlsruhe",
+    "Fulda",
+    "Giessen"
+  ),
+  postal_code = c(
+    "60311",
+    "65183",
+    "64283",
+    "55116",
+    "34117",
+    "68159",
+    "69117",
+    "76133",
+    "36037",
+    "35390"
+  )
+)
+
+name_prefixes <- c(
+  "Nordstern",
+  "Rheinblick",
+  "Mainwerk",
+  "Hansa",
+  "Bergtal",
+  "Westtor",
+  "Suedpark",
+  "Adler",
+  "Linden",
+  "Taunus",
+  "Neckar",
+  "Waldhof",
+  "Mittelrhein",
+  "Eichen",
+  "Silber",
+  "Kronen",
+  "Markt",
+  "Feldberg",
+  "Rosen",
+  "Central"
+)
+
+name_activities <- c(
+  "Handel",
+  "Logistik",
+  "Industrie",
+  "Technik",
+  "Produktion",
+  "Vertrieb",
+  "Transport",
+  "Lebensmittel",
+  "Bau & Service",
+  "Hotel",
+  "Gastronomie",
+  "Mobilitaet",
+  "Dienstleistungen",
+  "Versorgung",
+  "Werk"
+)
+
+street_names <- c(
+  "Hauptstrasse",
+  "Bahnhofstrasse",
+  "Industriestrasse",
+  "Marktstrasse",
+  "Rheinstrasse",
+  "Goethestrasse",
+  "Schillerstrasse",
+  "Gartenweg",
+  "Feldweg",
+  "Lindenweg"
+)
+
+identity_truth <- firm_truth %>%
+  select(
+    truth_firm_id,
+    region_code,
+    nace_code,
+    legal_form,
+    foundation_year
+  ) %>%
+  left_join(
+    location_lookup,
+    by = "region_code"
+  ) %>%
+  mutate(
+    business_id = sprintf(
+      "B%07d",
+      seq_len(n())
+    ),
+
+    legal_form_label = case_when(
+      legal_form == "Einzelunternehmen" ~ "",
+      TRUE ~ legal_form
+    ),
+
+    enterprise_name = trimws(
+      paste(
+        sample(
+          name_prefixes,
+          n(),
+          replace = TRUE
+        ),
+        sample(
+          name_activities,
+          n(),
+          replace = TRUE
+        ),
+        legal_form_label
+      )
+    ),
+
+    street = paste(
+      sample(
+        street_names,
+        n(),
+        replace = TRUE
+      ),
+      sample(
+        1:180,
+        n(),
+        replace = TRUE
+      )
+    )
+  ) %>%
+  select(
+    -legal_form_label
+  )
+
+# ----------------------------------------------------------------------
+# 9. Derive source-specific enterprise identities
+# ----------------------------------------------------------------------
+
+register_identity <- identity_truth %>%
+  transmute(
+    truth_firm_id,
+    register_id = sample(
+      make_source_id(
+        "REG",
+        n_firms
+      )
+    ),
+    business_id,
+    enterprise_name = perturb_company_name(
+      enterprise_name
+    ),
+    street = perturb_street(
+      street
+    ),
+    postal_code,
+    city = perturb_city(
+      city
+    )
+  )
+
+employment_identity <- identity_truth %>%
+  transmute(
+    truth_firm_id,
+    employment_source_id = sample(
+      make_source_id(
+        "EMP",
+        n_firms
+      )
+    ),
+    business_id = drop_identifier(
+      business_id,
+      probability = 0.10
+    ),
+    enterprise_name = perturb_company_name(
+      enterprise_name
+    ),
+    street = perturb_street(
+      street
+    ),
+    postal_code,
+    city = perturb_city(
+      city
+    ),
+    legal_form
+  )
+
+turnover_identity <- identity_truth %>%
+  transmute(
+    truth_firm_id,
+    turnover_source_id = sample(
+      make_source_id(
+        "TUR",
+        n_firms
+      )
+    ),
+    business_id = drop_identifier(
+      business_id,
+      probability = 0.10
+    ),
+    enterprise_name = perturb_company_name(
+      enterprise_name
+    ),
+    street = perturb_street(
+      street
+    ),
+    postal_code,
+    city = perturb_city(
+      city
+    ),
+    legal_form
+  )
+
+# ----------------------------------------------------------------------
+# 10. Attach source identities
+# ----------------------------------------------------------------------
+
+firms_with_identity <- firms_inconsistent %>%
+  left_join(
+    register_identity,
+    by = "truth_firm_id"
+  )
+
+employment_with_identity <- employment %>%
+  left_join(
+    employment_identity,
+    by = "truth_firm_id"
+  )
+
+turnover_with_identity <- turnover %>%
+  left_join(
+    turnover_identity,
+    by = "truth_firm_id"
+  )
+
+# ----------------------------------------------------------------------
+# 11. Build operational source datasets
+# ----------------------------------------------------------------------
+
+firms_operational <- firms_with_identity %>%
+  select(
+    register_id,
+    business_id,
+    enterprise_name,
+    street,
+    postal_code,
+    city,
+    region_code,
+    nace_code,
+    legal_form,
+    employees,
+    foundation_year,
+    revenue_last_year,
+    register_reference_year,
+    revenue_reference_year
+  )
+
+employment_operational <- employment_with_identity %>%
+  select(
+    employment_source_id,
+    business_id,
+    enterprise_name,
+    street,
+    postal_code,
+    city,
+    legal_form,
+    month,
+    nace_code,
+    region_code,
+    seasonal_factor,
+    employees
+  )
+
+turnover_operational <- turnover_with_identity %>%
+  select(
+    turnover_source_id,
+    business_id,
+    enterprise_name,
+    street,
+    postal_code,
+    city,
+    legal_form,
     month,
     nace_code,
     region_code,
@@ -536,22 +846,139 @@ turnover <- expand_grid(
   )
 
 # ----------------------------------------------------------------------
-# 8. Write raw source datasets
+# 12. Build hidden truth datasets
+# ----------------------------------------------------------------------
+
+enterprise_truth <- identity_truth %>%
+  select(
+    truth_firm_id,
+    business_id,
+    enterprise_name,
+    street,
+    postal_code,
+    city,
+    region_code,
+    nace_code,
+    legal_form,
+    foundation_year
+  )
+
+linkage_truth <- bind_rows(
+  register_identity %>%
+    transmute(
+      source = "register",
+      source_record_id = register_id,
+      truth_firm_id
+    ),
+
+  employment_identity %>%
+    transmute(
+      source = "employment",
+      source_record_id = employment_source_id,
+      truth_firm_id
+    ),
+
+  turnover_identity %>%
+    transmute(
+      source = "turnover",
+      source_record_id = turnover_source_id,
+      truth_firm_id
+    )
+)
+
+value_truth <- bind_rows(
+  firms_with_identity %>%
+    transmute(
+      source = "register",
+      source_record_id = register_id,
+      truth_firm_id,
+      reference_period = as.character(
+        register_reference_year
+      ),
+      variable = "employees",
+      truth_value = as.numeric(
+        employees_register_complete
+      )
+    ),
+
+  firms_with_identity %>%
+    transmute(
+      source = "register",
+      source_record_id = register_id,
+      truth_firm_id,
+      reference_period = as.character(
+        revenue_reference_year
+      ),
+      variable = "revenue_last_year",
+      truth_value = as.numeric(
+        revenue_last_year_complete
+      )
+    ),
+
+  employment_with_identity %>%
+    transmute(
+      source = "employment",
+      source_record_id = employment_source_id,
+      truth_firm_id,
+      reference_period = format(
+        month,
+        "%Y-%m"
+      ),
+      variable = "employees",
+      truth_value = as.numeric(
+        employees_source_complete
+      )
+    ),
+
+  turnover_with_identity %>%
+    transmute(
+      source = "turnover",
+      source_record_id = turnover_source_id,
+      truth_firm_id,
+      reference_period = format(
+        month,
+        "%Y-%m"
+      ),
+      variable = "turnover",
+      truth_value = as.numeric(
+        turnover_source_complete
+      )
+    )
+)
+
+# ----------------------------------------------------------------------
+# 13. Write operational and hidden datasets
 # ----------------------------------------------------------------------
 
 write_csv(
-  firms_inconsistent,
+  firms_operational,
   "data/raw/firms.csv"
 )
 
 write_csv(
-  employment,
+  employment_operational,
   "data/raw/employment.csv"
 )
 
 write_csv(
-  turnover,
+  turnover_operational,
   "data/raw/turnover.csv"
 )
 
+write_csv(
+  enterprise_truth,
+  "data/truth/enterprise_truth.csv"
+)
+
+write_csv(
+  linkage_truth,
+  "data/truth/linkage_truth.csv"
+)
+
+write_csv(
+  value_truth,
+  "data/truth/value_truth.csv"
+)
+
 message("Synthetic enterprise datasets generated successfully.")
+message("Operational sources do not expose truth_firm_id.")

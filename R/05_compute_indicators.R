@@ -1,5 +1,5 @@
 # =====================================================================
-# 04_compute_indicators.R
+# 05_compute_indicators.R
 # Aggregate Economic Indicators by Sector and Region
 # =====================================================================
 
@@ -44,7 +44,7 @@ indicators_sector_region <- panel %>%
   group_by(year, nace_code, region_code) %>%
   summarise(
     n_obs                  = n(),
-    n_firms                = n_distinct(firm_id),
+    n_firms                = n_distinct(canonical_firm_id),
     total_turnover         = sum(turnover_monthly, na.rm = TRUE),
     avg_turnover_per_firm  = total_turnover / n_firms,
     total_employees        = sum(employees_monthly, na.rm = TRUE),
@@ -59,7 +59,7 @@ indicators_sector <- panel %>%
   group_by(year, nace_code) %>%
   summarise(
     n_obs                  = n(),
-    n_firms                = n_distinct(firm_id),
+    n_firms                = n_distinct(canonical_firm_id),
     total_turnover         = sum(turnover_monthly, na.rm = TRUE),
     avg_turnover_per_firm  = total_turnover / n_firms,
     total_employees        = sum(employees_monthly, na.rm = TRUE),
@@ -74,7 +74,7 @@ indicators_region <- panel %>%
   group_by(year, region_code) %>%
   summarise(
     n_obs                  = n(),
-    n_firms                = n_distinct(firm_id),
+    n_firms                = n_distinct(canonical_firm_id),
     total_turnover         = sum(turnover_monthly, na.rm = TRUE),
     avg_turnover_per_firm  = total_turnover / n_firms,
     total_employees        = sum(employees_monthly, na.rm = TRUE),
