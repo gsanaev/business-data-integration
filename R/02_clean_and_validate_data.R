@@ -152,29 +152,11 @@ firms_clean <- firms_raw %>%
     revenue_last_year_raw = as.numeric(revenue_last_year),
     foundation_year_raw = as.integer(foundation_year)
   ) %>%
-  group_by(
-    nace_code,
-    region_code
-  ) %>%
-  mutate(
-    register_emp_group_median = safe_median(
-      ifelse(
-        !is.na(employees_register_raw) &
-          employees_register_raw > 0,
-        employees_register_raw,
-        NA_real_
-      )
-    )
-  ) %>%
-  ungroup() %>%
   mutate(
     # --------------------------------------------------------------
     # Register employment
     # --------------------------------------------------------------
     employees_register_status = case_when(
-      is.na(employees_register_raw) &
-        !is.na(register_emp_group_median) ~ "imputed",
-
       is.na(employees_register_raw) ~ "review_required",
 
       employees_register_raw <= 0 ~ "rejected",
@@ -191,14 +173,11 @@ firms_clean <- firms_raw %>%
     ),
 
     employees_register_imputed =
-      employees_register_status == "imputed",
+      FALSE,
 
     employees = case_when(
       employees_register_status == "accepted" ~
         employees_register_raw,
-
-      employees_register_status == "imputed" ~
-        round(register_emp_group_median),
 
       TRUE ~ NA_real_
     ),
@@ -260,9 +239,6 @@ firms_clean <- firms_raw %>%
 
       TRUE ~ NA_integer_
     )
-  ) %>%
-  select(
-    -register_emp_group_median
   )
 
 # ----------------------------------------------------------------------
