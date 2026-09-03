@@ -131,7 +131,7 @@ firm_truth <- tibble(
       )
     ),
 
-    # Persistent productivity heterogeneity across firms.
+    # Persistent turnover-per-employee heterogeneity across firms.
     firm_productivity_factor = rlnorm(
       n(),
       meanlog = 0,
@@ -196,7 +196,7 @@ annual_truth <- expand_grid(
       )
     ),
 
-    # Small annual deviations around the productivity path.
+    # Small annual deviations around the turnover-per-employee path.
     productivity_noise = exp(
       rnorm(n(), mean = 0, sd = 0.020)
     ),

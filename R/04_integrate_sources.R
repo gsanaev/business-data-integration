@@ -308,12 +308,6 @@ panel <- panel %>%
       ) /
       lag(employees_monthly),
 
-    # This measure will be renamed more explicitly in the later
-    # indicator-semantics phase.
-    productivity =
-      turnover_monthly /
-      employees_monthly,
-
     month_num = month(month),
 
     seasonal_index =
@@ -326,21 +320,8 @@ panel <- panel %>%
   ungroup()
 
 # ----------------------------------------------------------------------
-# 9. Consistency checks
+# 9. Diagnostic summary
 # ----------------------------------------------------------------------
-
-implausible_prod <- panel %>%
-  filter(
-    productivity < 0 |
-      productivity > 1e7
-  )
-
-if (nrow(implausible_prod) > 0) {
-  warning(
-    "Implausible turnover-per-employee values detected: ",
-    nrow(implausible_prod)
-  )
-}
 
 message("YoY turnover growth summary:")
 print(
