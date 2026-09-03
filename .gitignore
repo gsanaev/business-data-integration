@@ -11,18 +11,26 @@ renv/library/
 .Ruserdata
 
 ############################################
-# Raw & processed data (generated, confidential)
+# Generated data
 ############################################
 
 # Ignore all generated data
 data/raw/*
 data/clean/*
 data/processed/*
+data/truth/*
 
 # Keep folder structure
 !data/raw/
 !data/clean/
 !data/processed/
+!data/truth/
+
+# Keep placeholder files
+!data/raw/.gitkeep
+!data/clean/.gitkeep
+!data/processed/.gitkeep
+!data/truth/.gitkeep
 
 ############################################
 # Outputs

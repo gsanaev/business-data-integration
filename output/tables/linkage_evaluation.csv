@@ -1,0 +1,11 @@
+evaluation_scope,source,linkage_method,n_records,n_assigned,assignment_rate,n_correct,accuracy_assigned,correct_assignment_rate
+overall,all,all,4500,4500,1,4500,1,1
+source,accounting,all,1500,1500,1,1500,1,1
+source,employment,all,1500,1500,1,1500,1,1
+source,turnover,all,1500,1500,1,1500,1,1
+source_method,accounting,business_id_exact,1363,1363,1,1363,1,1
+source_method,accounting,weighted_edit_similarity,137,137,1,137,1,1
+source_method,employment,business_id_exact,1344,1344,1,1344,1,1
+source_method,employment,weighted_edit_similarity,156,156,1,156,1,1
+source_method,turnover,business_id_exact,1354,1354,1,1354,1,1
+source_method,turnover,weighted_edit_similarity,146,146,1,146,1,1
