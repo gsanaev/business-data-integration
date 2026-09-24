@@ -1,0 +1,32 @@
+schema_version: 1
+
+scenarios:
+  baseline:
+    missing_business_id: 0.10
+    invalid_or_unknown_business_id: 0.00
+    additional_name_typo: 0.00
+    substantial_name_degradation: 0.00
+    strong_street_discrepancy: 0.00
+    postal_code_missing_or_error: 0.00
+    nace_disagreement: 0.00
+    legal_form_disagreement: 0.00
+
+  moderate:
+    missing_business_id: 0.25
+    invalid_or_unknown_business_id: 0.03
+    additional_name_typo: 0.05
+    substantial_name_degradation: 0.03
+    strong_street_discrepancy: 0.05
+    postal_code_missing_or_error: 0.03
+    nace_disagreement: 0.02
+    legal_form_disagreement: 0.02
+
+  difficult:
+    missing_business_id: 0.40
+    invalid_or_unknown_business_id: 0.07
+    additional_name_typo: 0.12
+    substantial_name_degradation: 0.08
+    strong_street_discrepancy: 0.10
+    postal_code_missing_or_error: 0.07
+    nace_disagreement: 0.05
+    legal_form_disagreement: 0.05
