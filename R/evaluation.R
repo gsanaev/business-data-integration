@@ -227,3 +227,374 @@ validate_enterprise_split <- function(
 
   invisible(TRUE)
 }
+
+
+# =====================================================================
+# Scenario calibration
+# =====================================================================
+
+scenario_corruption_columns <- function() {
+  c(
+    "missing_business_id",
+    "invalid_or_unknown_business_id",
+    "additional_name_typo",
+    "substantial_name_degradation",
+    "strong_street_discrepancy",
+    "postal_code_missing_or_error",
+    "nace_disagreement",
+    "legal_form_disagreement"
+  )
+}
+
+
+summarise_scenario_corruption_rates <- function(
+  corruption_log,
+  sample_role = "development"
+) {
+  flag_columns <-
+    scenario_corruption_columns()
+
+  corruption_log %>%
+    dplyr::filter(
+      .data$sample_role ==
+        .env$sample_role
+    ) %>%
+    dplyr::group_by(
+      .data$scenario,
+      .data$source
+    ) %>%
+    dplyr::summarise(
+      dplyr::across(
+        dplyr::all_of(
+          flag_columns
+        ),
+        mean
+      ),
+      .groups = "drop"
+    )
+}
+
+
+summarise_scenario_corruption_counts <- function(
+  corruption_log,
+  sample_role = "development"
+) {
+  flag_columns <-
+    scenario_corruption_columns()
+
+  corruption_log %>%
+    dplyr::filter(
+      .data$sample_role ==
+        .env$sample_role
+    ) %>%
+    dplyr::mutate(
+      corruption_count =
+        rowSums(
+          dplyr::across(
+            dplyr::all_of(
+              flag_columns
+            )
+          )
+        )
+    ) %>%
+    dplyr::count(
+      .data$scenario,
+      .data$source,
+      .data$corruption_count,
+      name = "n"
+    ) %>%
+    dplyr::group_by(
+      .data$scenario,
+      .data$source
+    ) %>%
+    dplyr::mutate(
+      share =
+        .data$n /
+          sum(
+            .data$n
+          )
+    ) %>%
+    dplyr::ungroup()
+}
+
+
+extract_calibration_source_entities <- function(
+  source_data,
+  source_id_column
+) {
+  source_data %>%
+    dplyr::distinct(
+      .data$truth_firm_id,
+      source_record_id =
+        .data[[source_id_column]],
+      .data$business_id,
+      .data$enterprise_name,
+      .data$street,
+      .data$postal_code,
+      .data$city,
+      .data$legal_form,
+      .data$nace_code
+    )
+}
+
+
+prepare_calibration_register_entities <- function(
+  register_data
+) {
+  register_data %>%
+    dplyr::distinct(
+      .data$truth_firm_id,
+      .data$register_id,
+      .data$business_id,
+      .data$enterprise_name,
+      .data$street,
+      .data$postal_code,
+      .data$city,
+      .data$legal_form,
+      .data$nace_code
+    ) %>%
+    dplyr::arrange(
+      .data$register_id
+    ) %>%
+    dplyr::mutate(
+      canonical_firm_id =
+        sprintf(
+          "C%06d",
+          dplyr::row_number()
+        )
+    )
+}
+
+
+evaluate_candidate_generation <- function(
+  source_data,
+  source_id_column,
+  register_data,
+  enterprise_split,
+  scenario_name,
+  source_name
+) {
+  source_entities <-
+    extract_calibration_source_entities(
+      source_data,
+      source_id_column
+    ) %>%
+    dplyr::left_join(
+      enterprise_split,
+      by = "truth_firm_id"
+    ) %>%
+    dplyr::filter(
+      .data$sample_role ==
+        "development"
+    )
+
+  if (
+    anyNA(
+      source_entities$sample_role
+    )
+  ) {
+    stop(
+      "Development split could not be joined to all source enterprises."
+    )
+  }
+
+  register_entities <-
+    prepare_calibration_register_entities(
+      register_data
+    )
+
+  register_lookup <-
+    register_entities %>%
+    dplyr::select(
+      canonical_firm_id,
+      register_id,
+      business_id
+    )
+
+  truth_register_map <-
+    register_entities %>%
+    dplyr::select(
+      truth_firm_id,
+      true_register_id =
+        register_id
+    )
+
+  unresolved <-
+    source_entities %>%
+    dplyr::left_join(
+      register_lookup,
+      by = "business_id"
+    ) %>%
+    dplyr::filter(
+      is.na(
+        .data$canonical_firm_id
+      )
+    ) %>%
+    dplyr::left_join(
+      truth_register_map,
+      by = "truth_firm_id"
+    )
+
+  if (
+    anyNA(
+      unresolved$true_register_id
+    )
+  ) {
+    stop(
+      "True register identifiers are missing for unresolved development records."
+    )
+  }
+
+  if (
+    nrow(unresolved) == 0L
+  ) {
+    return(
+      tibble::tibble(
+        scenario = character(),
+        source = character(),
+        truth_firm_id = character(),
+        source_record_id = character(),
+        business_id = character(),
+        candidate_count = integer(),
+        true_candidate_present = logical()
+      )
+    )
+  }
+
+  source_for_matching <-
+    unresolved %>%
+    dplyr::transmute(
+      source_record_id =
+        .data$source_record_id,
+      enterprise_name_source =
+        .data$enterprise_name,
+      street_source =
+        .data$street,
+      postal_code_source =
+        as.character(
+          .data$postal_code
+        ),
+      city_source =
+        .data$city,
+      legal_form_source =
+        .data$legal_form,
+      nace_code_source =
+        .data$nace_code
+    )
+
+  register_for_matching <-
+    prepare_register_linkage_records(
+      register_entities
+    )
+
+  candidates <-
+    generate_linkage_candidates(
+      source_for_matching,
+      register_for_matching
+    )
+
+  candidate_diagnostics <-
+    candidates %>%
+    dplyr::left_join(
+      unresolved %>%
+        dplyr::select(
+          source_record_id,
+          true_register_id
+        ),
+      by = "source_record_id"
+    ) %>%
+    dplyr::group_by(
+      .data$source_record_id
+    ) %>%
+    dplyr::summarise(
+      candidate_count =
+        dplyr::n(),
+      true_candidate_present =
+        any(
+          .data$register_id ==
+            .data$true_register_id
+        ),
+      .groups = "drop"
+    )
+
+  unresolved %>%
+    dplyr::select(
+      truth_firm_id,
+      source_record_id,
+      business_id
+    ) %>%
+    dplyr::left_join(
+      candidate_diagnostics,
+      by = "source_record_id"
+    ) %>%
+    dplyr::mutate(
+      candidate_count =
+        dplyr::coalesce(
+          .data$candidate_count,
+          0L
+        ),
+      true_candidate_present =
+        dplyr::coalesce(
+          .data$true_candidate_present,
+          FALSE
+        ),
+      scenario =
+        scenario_name,
+      source =
+        source_name,
+      .before =
+        "truth_firm_id"
+    )
+}
+
+
+summarise_candidate_generation <- function(
+  candidate_records
+) {
+  candidate_records %>%
+    dplyr::group_by(
+      .data$scenario,
+      .data$source
+    ) %>%
+    dplyr::summarise(
+      unresolved_records =
+        dplyr::n(),
+
+      zero_candidate_records =
+        sum(
+          .data$candidate_count == 0L
+        ),
+
+      mean_candidates =
+        mean(
+          .data$candidate_count
+        ),
+
+      median_candidates =
+        stats::median(
+          .data$candidate_count
+        ),
+
+      p95_candidates =
+        as.numeric(
+          stats::quantile(
+            .data$candidate_count,
+            probs = 0.95,
+            names = FALSE,
+            type = 7
+          )
+        ),
+
+      max_candidates =
+        max(
+          .data$candidate_count
+        ),
+
+      candidate_recall =
+        mean(
+          .data$true_candidate_present
+        ),
+
+      .groups = "drop"
+    )
+}

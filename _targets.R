@@ -301,6 +301,92 @@ list(
   ),
 
   tar_target(
+    scenario_calibration_rates,
+    summarise_scenario_corruption_rates(
+      scenario_corruption_log
+    )
+  ),
+
+  tar_target(
+    scenario_calibration_counts,
+    summarise_scenario_corruption_counts(
+      scenario_corruption_log
+    )
+  ),
+
+  tar_target(
+    scenario_candidate_records,
+    {
+      source_specs <-
+        list(
+          employment =
+            "employment_source_id",
+          turnover =
+            "turnover_source_id",
+          accounting =
+            "accounting_source_id"
+        )
+
+      scenario_names <-
+        c(
+          "baseline",
+          "moderate",
+          "difficult"
+        )
+
+      results <-
+        list()
+
+      result_index <- 1L
+
+      for (
+        scenario_name in
+          scenario_names
+      ) {
+        scenario_sources <-
+          identity_scenarios[[scenario_name]]$sources
+
+        for (
+          source_name in
+            names(
+              source_specs
+            )
+        ) {
+          results[[result_index]] <-
+            evaluate_candidate_generation(
+              source_data =
+                scenario_sources[[source_name]],
+              source_id_column =
+                source_specs[[source_name]],
+              register_data =
+                scenario_sources$firms,
+              enterprise_split =
+                enterprise_split,
+              scenario_name =
+                scenario_name,
+              source_name =
+                source_name
+            )
+
+          result_index <-
+            result_index + 1L
+        }
+      }
+
+      bind_rows(
+        results
+      )
+    }
+  ),
+
+  tar_target(
+    scenario_candidate_summary,
+    summarise_candidate_generation(
+      scenario_candidate_records
+    )
+  ),
+
+  tar_target(
     raw_files,
     {
       dir.create(
