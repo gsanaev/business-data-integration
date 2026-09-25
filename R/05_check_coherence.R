@@ -165,247 +165,40 @@ validate_coherence_annual_panel(
 # 6. Rule COH_REV_ACCOUNTING
 # ----------------------------------------------------------------------
 
-revenue_accounting_events <- annual_panel %>%
-  select(
-    canonical_firm_id,
-    year,
-    usable_turnover_months,
-    turnover_imputed_months,
-    annual_turnover
-  ) %>%
-  left_join(
-    accounting %>%
-      select(
-        canonical_firm_id,
-        reference_year,
-        operating_revenue,
-        operating_revenue_status
-      ),
-    by = c(
-      "canonical_firm_id",
-      "year" =
-        "reference_year"
-    )
-  ) %>%
-  transmute(
-    canonical_firm_id,
-    reference_year = year,
-
-    rule_id =
-      "COH_REV_ACCOUNTING",
-
-    comparability_group =
-      "annual_revenue_related",
-
-    left_source =
-      "turnover",
-
-    left_variable =
-      "annual_turnover",
-
-    right_source =
-      "accounting",
-
-    right_variable =
-      "operating_revenue",
-
-    left_value =
-      annual_turnover,
-
-    right_value =
-      operating_revenue,
-
-    monthly_coverage =
-      usable_turnover_months,
-
-    required_monthly_coverage =
-      required_months,
-
-    imputed_months =
-      turnover_imputed_months,
-
-    right_quality_status =
-      operating_revenue_status,
-
-    applicability_status = case_when(
-      usable_turnover_months <
-        required_months ~
-        "insufficient_monthly_coverage",
-
-      is.na(operating_revenue) ~
-        "right_value_unavailable",
-
-      TRUE ~
-        "applicable"
-    ),
-
-    comparison_note =
-      paste(
-        "Annual statistical turnover and accounting operating",
-        "revenue are related but not assumed to be identical."
-      )
-  ) %>%
-  finalize_events(
-    threshold =
-      threshold_revenue_accounting,
-    materiality_medium_percentile =
-      materiality_medium_percentile,
-    materiality_high_percentile =
-      materiality_high_percentile
+revenue_accounting_events <-
+  build_revenue_accounting_events(
+    annual_panel,
+    accounting,
+    required_months,
+    threshold_revenue_accounting,
+    materiality_medium_percentile,
+    materiality_high_percentile
   )
 
 # ----------------------------------------------------------------------
 # 7. Rule COH_REV_REGISTER
 # ----------------------------------------------------------------------
 
-revenue_register_events <- annual_panel %>%
-  filter(
-    year ==
-      revenue_reference_year
-  ) %>%
-  transmute(
-    canonical_firm_id,
-    reference_year = year,
-
-    rule_id =
-      "COH_REV_REGISTER",
-
-    comparability_group =
-      "annual_revenue_related",
-
-    left_source =
-      "turnover",
-
-    left_variable =
-      "annual_turnover",
-
-    right_source =
-      "register",
-
-    right_variable =
-      "revenue_last_year",
-
-    left_value =
-      annual_turnover,
-
-    right_value =
-      register_revenue,
-
-    monthly_coverage =
-      usable_turnover_months,
-
-    required_monthly_coverage =
-      required_months,
-
-    imputed_months =
-      turnover_imputed_months,
-
-    right_quality_status =
-      register_revenue_status,
-
-    applicability_status = case_when(
-      usable_turnover_months <
-        required_months ~
-        "insufficient_monthly_coverage",
-
-      is.na(register_revenue) ~
-        "right_value_unavailable",
-
-      TRUE ~
-        "applicable"
-    ),
-
-    comparison_note =
-      paste(
-        "Annual statistical turnover is compared with",
-        "register-style prior-year revenue for the same",
-        "reference year."
-      )
-  ) %>%
-  finalize_events(
-    threshold =
-      threshold_revenue_register,
-    materiality_medium_percentile =
-      materiality_medium_percentile,
-    materiality_high_percentile =
-      materiality_high_percentile
+revenue_register_events <-
+  build_revenue_register_events(
+    annual_panel,
+    required_months,
+    threshold_revenue_register,
+    materiality_medium_percentile,
+    materiality_high_percentile
   )
 
 # ----------------------------------------------------------------------
 # 8. Rule COH_EMP_REGISTER
 # ----------------------------------------------------------------------
 
-employment_register_events <- annual_panel %>%
-  filter(
-    year ==
-      register_reference_year
-  ) %>%
-  transmute(
-    canonical_firm_id,
-    reference_year = year,
-
-    rule_id =
-      "COH_EMP_REGISTER",
-
-    comparability_group =
-      "employment",
-
-    left_source =
-      "employment",
-
-    left_variable =
-      "annual_mean_employment",
-
-    right_source =
-      "register",
-
-    right_variable =
-      "employees",
-
-    left_value =
-      annual_mean_employment,
-
-    right_value =
-      register_employment,
-
-    monthly_coverage =
-      usable_employment_months,
-
-    required_monthly_coverage =
-      required_months,
-
-    imputed_months =
-      employment_imputed_months,
-
-    right_quality_status =
-      register_employment_status,
-
-    applicability_status = case_when(
-      usable_employment_months <
-        required_months ~
-        "insufficient_monthly_coverage",
-
-      is.na(register_employment) ~
-        "right_value_unavailable",
-
-      TRUE ~
-        "applicable"
-    ),
-
-    comparison_note =
-      paste(
-        "Annual mean monthly employment is compared with",
-        "a register-style employment snapshot; the concepts",
-        "are related but not identical."
-      )
-  ) %>%
-  finalize_events(
-    threshold =
-      threshold_employment_register,
-    materiality_medium_percentile =
-      materiality_medium_percentile,
-    materiality_high_percentile =
-      materiality_high_percentile
+employment_register_events <-
+  build_employment_register_events(
+    annual_panel,
+    required_months,
+    threshold_employment_register,
+    materiality_medium_percentile,
+    materiality_high_percentile
   )
 
 # ----------------------------------------------------------------------
