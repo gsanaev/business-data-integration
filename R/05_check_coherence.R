@@ -205,75 +205,22 @@ employment_register_events <-
 # 9. Combine long-form coherence events
 # ----------------------------------------------------------------------
 
-coherence_events <- bind_rows(
-  revenue_accounting_events,
-  revenue_register_events,
-  employment_register_events
-) %>%
-  arrange(
-    rule_id,
-    canonical_firm_id,
-    reference_year
+coherence_events <-
+  combine_coherence_events(
+    revenue_accounting_events,
+    revenue_register_events,
+    employment_register_events,
+    accounting,
+    annual_panel
   )
-
-expected_event_rows <-
-  nrow(accounting) +
-  n_distinct(
-    annual_panel$canonical_firm_id
-  ) +
-  n_distinct(
-    annual_panel$canonical_firm_id
-  )
-
-if (
-  nrow(coherence_events) !=
-    expected_event_rows
-) {
-  stop(
-    "Unexpected number of coherence-event rows: ",
-    nrow(coherence_events),
-    "; expected ",
-    expected_event_rows,
-    "."
-  )
-}
 
 # ----------------------------------------------------------------------
 # 10. Build materiality-prioritized review queue
 # ----------------------------------------------------------------------
 
-review_queue <- coherence_events %>%
-  filter(
-    coherence_status ==
-      "large_difference",
-    review_priority %in%
-      c(
-        "high",
-        "medium"
-      )
-  ) %>%
-  mutate(
-    priority_order = case_when(
-      review_priority ==
-        "high" ~
-        1L,
-
-      review_priority ==
-        "medium" ~
-        2L,
-
-      TRUE ~
-        3L
-    )
-  ) %>%
-  arrange(
-    priority_order,
-    rule_id,
-    desc(materiality_percentile),
-    desc(relative_difference)
-  ) %>%
-  select(
-    -priority_order
+review_queue <-
+  build_coherence_review_queue(
+    coherence_events
   )
 
 # ----------------------------------------------------------------------

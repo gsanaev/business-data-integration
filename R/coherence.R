@@ -598,3 +598,85 @@ build_employment_register_events <- function(
         materiality_high_percentile
     )
 }
+
+combine_coherence_events <- function(
+  revenue_accounting_events,
+  revenue_register_events,
+  employment_register_events,
+  accounting,
+  annual_panel
+) {
+  coherence_events <- bind_rows(
+    revenue_accounting_events,
+    revenue_register_events,
+    employment_register_events
+  ) %>%
+    arrange(
+      rule_id,
+      canonical_firm_id,
+      reference_year
+    )
+
+  expected_event_rows <-
+    nrow(accounting) +
+    n_distinct(
+      annual_panel$canonical_firm_id
+    ) +
+    n_distinct(
+      annual_panel$canonical_firm_id
+    )
+
+  if (
+    nrow(coherence_events) !=
+      expected_event_rows
+  ) {
+    stop(
+      "Unexpected number of coherence-event rows: ",
+      nrow(coherence_events),
+      "; expected ",
+      expected_event_rows,
+      "."
+    )
+  }
+
+  coherence_events
+}
+
+
+build_coherence_review_queue <- function(
+  coherence_events
+) {
+  coherence_events %>%
+    filter(
+      coherence_status ==
+        "large_difference",
+      review_priority %in%
+        c(
+          "high",
+          "medium"
+        )
+    ) %>%
+    mutate(
+      priority_order = case_when(
+        review_priority ==
+          "high" ~
+          1L,
+
+        review_priority ==
+          "medium" ~
+          2L,
+
+        TRUE ~
+          3L
+      )
+    ) %>%
+    arrange(
+      priority_order,
+      rule_id,
+      desc(materiality_percentile),
+      desc(relative_difference)
+    ) %>%
+    select(
+      -priority_order
+    )
+}
