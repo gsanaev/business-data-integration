@@ -233,3 +233,106 @@ finalize_events <- function(
     ) %>%
     ungroup()
 }
+
+build_coherence_annual_panel <- function(
+  panel,
+  required_months
+) {
+  panel %>%
+    group_by(
+      canonical_firm_id,
+      year
+    ) %>%
+    summarise(
+      usable_turnover_months =
+        sum(
+          !is.na(turnover_monthly)
+        ),
+
+      usable_employment_months =
+        sum(
+          !is.na(employees_monthly)
+        ),
+
+      turnover_imputed_months =
+        sum(
+          turnover_status == "imputed",
+          na.rm = TRUE
+        ),
+
+      employment_imputed_months =
+        sum(
+          employment_status == "imputed",
+          na.rm = TRUE
+        ),
+
+      annual_turnover = if (
+        sum(!is.na(turnover_monthly)) ==
+          required_months
+      ) {
+        sum(
+          turnover_monthly,
+          na.rm = TRUE
+        )
+      } else {
+        NA_real_
+      },
+
+      annual_mean_employment = if (
+        sum(!is.na(employees_monthly)) ==
+          required_months
+      ) {
+        mean(
+          employees_monthly,
+          na.rm = TRUE
+        )
+      } else {
+        NA_real_
+      },
+
+      register_id =
+        first(register_id),
+
+      register_employment =
+        first(employees_firm),
+
+      register_employment_status =
+        first(employees_register_status),
+
+      register_reference_year =
+        first(register_reference_year),
+
+      register_revenue =
+        first(revenue_last_year),
+
+      register_revenue_status =
+        first(revenue_status),
+
+      revenue_reference_year =
+        first(revenue_reference_year),
+
+      .groups = "drop"
+    )
+}
+
+
+validate_coherence_annual_panel <- function(
+  annual_panel
+) {
+  if (
+    anyDuplicated(
+      annual_panel[
+        c(
+          "canonical_firm_id",
+          "year"
+        )
+      ]
+    )
+  ) {
+    stop(
+      "Duplicate enterprise-year keys detected in annual panel."
+    )
+  }
+
+  invisible(TRUE)
+}
