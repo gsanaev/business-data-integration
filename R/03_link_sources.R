@@ -25,6 +25,19 @@ source(
   "R/helpers/linkage_similarity.R"
 )
 
+source("R/config.R")
+
+project_config <- load_project_config()
+
+baseline_similarity_config <-
+  project_config$processing$linkage$baseline_similarity
+
+similarity_weights <-
+  unlist(
+    baseline_similarity_config$weights,
+    use.names = TRUE
+  )
+
 dir.create(
   "data/processed",
   showWarnings = FALSE,
@@ -35,8 +48,11 @@ dir.create(
 # 1. Linkage decision thresholds
 # ----------------------------------------------------------------------
 
-similarity_score_threshold <- 0.85
-similarity_margin_threshold <- 0.05
+similarity_score_threshold <-
+  baseline_similarity_config$score_threshold
+
+similarity_margin_threshold <-
+  baseline_similarity_config$margin_threshold
 
 # ----------------------------------------------------------------------
 # 2. Load validated sources
@@ -254,12 +270,18 @@ rank_similarity_candidates <- function(
         ),
 
       similarity_score =
-        0.40 * name_similarity +
-        0.30 * street_similarity +
-        0.05 * city_similarity +
-        0.10 * postal_code_match +
-        0.075 * legal_form_match +
-        0.075 * nace_match
+        similarity_weights[["name_similarity"]] *
+          name_similarity +
+        similarity_weights[["street_similarity"]] *
+          street_similarity +
+        similarity_weights[["city_similarity"]] *
+          city_similarity +
+        similarity_weights[["postal_code_match"]] *
+          postal_code_match +
+        similarity_weights[["legal_form_match"]] *
+          legal_form_match +
+        similarity_weights[["nace_match"]] *
+          nace_match
     ) %>%
     group_by(
       source_record_id
