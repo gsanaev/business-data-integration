@@ -282,3 +282,98 @@ testthat::test_that(
     )
   }
 )
+
+
+testthat::test_that(
+  "similarity benchmark summary preserves unresolved-link diagnostics",
+  {
+    records <-
+      tibble::tibble(
+        scenario =
+          rep(
+            "moderate",
+            3
+          ),
+        source =
+          rep(
+            "employment",
+            3
+          ),
+        identifier_issue =
+          c(
+            "missing_identifier",
+            "missing_identifier",
+            "identifier_not_found"
+          ),
+        true_candidate_present =
+          c(
+            TRUE,
+            TRUE,
+            FALSE
+          ),
+        top_candidate_correct =
+          c(
+            TRUE,
+            FALSE,
+            FALSE
+          ),
+        top_similarity_score =
+          c(
+            0.95,
+            0.90,
+            NA_real_
+          ),
+        similarity_margin =
+          c(
+            0.20,
+            0.04,
+            NA_real_
+          )
+      )
+
+    summary <-
+      summarise_similarity_benchmark(
+        records
+      )
+
+    testthat::expect_equal(
+      summary$unresolved_records,
+      3L
+    )
+
+    testthat::expect_equal(
+      summary$missing_identifier,
+      2L
+    )
+
+    testthat::expect_equal(
+      summary$identifier_not_found,
+      1L
+    )
+
+    testthat::expect_equal(
+      summary$candidate_recall,
+      2 / 3
+    )
+
+    testthat::expect_equal(
+      summary$top1_accuracy,
+      1 / 3
+    )
+
+    testthat::expect_equal(
+      summary$scorable_top_rate,
+      2 / 3
+    )
+
+    testthat::expect_equal(
+      summary$median_top_score,
+      0.925
+    )
+
+    testthat::expect_equal(
+      summary$median_margin,
+      0.12
+    )
+  }
+)

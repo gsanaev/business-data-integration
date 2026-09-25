@@ -598,3 +598,374 @@ summarise_candidate_generation <- function(
       .groups = "drop"
     )
 }
+
+
+# =====================================================================
+# Weighted-similarity benchmark evidence
+# =====================================================================
+
+build_similarity_benchmark_records <- function(
+  source_data,
+  source_id_column,
+  register_data,
+  enterprise_split,
+  scenario_name,
+  source_name,
+  similarity_weights
+) {
+  source_entities <-
+    extract_calibration_source_entities(
+      source_data,
+      source_id_column
+    ) %>%
+    dplyr::left_join(
+      enterprise_split,
+      by = "truth_firm_id"
+    ) %>%
+    dplyr::filter(
+      .data$sample_role ==
+        "development"
+    )
+
+  register_entities <-
+    prepare_calibration_register_entities(
+      register_data
+    )
+
+  register_lookup <-
+    register_entities %>%
+    dplyr::select(
+      canonical_firm_id,
+      register_id,
+      business_id
+    )
+
+  truth_register_map <-
+    register_entities %>%
+    dplyr::select(
+      truth_firm_id,
+      true_register_id =
+        register_id
+    )
+
+  unresolved <-
+    source_entities %>%
+    dplyr::left_join(
+      register_lookup,
+      by = "business_id"
+    ) %>%
+    dplyr::filter(
+      is.na(
+        .data$canonical_firm_id
+      )
+    ) %>%
+    dplyr::left_join(
+      truth_register_map,
+      by = "truth_firm_id"
+    )
+
+  if (
+    anyNA(
+      unresolved$true_register_id
+    )
+  ) {
+    stop(
+      "True register identifiers are missing for unresolved development records."
+    )
+  }
+
+  if (
+    nrow(unresolved) == 0L
+  ) {
+    return(
+      tibble::tibble(
+        scenario = character(),
+        source = character(),
+        truth_firm_id = character(),
+        source_record_id = character(),
+        business_id = character(),
+        identifier_issue = character(),
+        true_register_id = character(),
+        candidate_count = integer(),
+        true_candidate_present = logical(),
+        true_candidate_rank = integer(),
+        true_candidate_score = double(),
+        top_candidate_register_id = character(),
+        top_candidate_canonical_firm_id = character(),
+        top_similarity_score = double(),
+        second_similarity_score = double(),
+        similarity_margin = double(),
+        top_candidate_correct = logical()
+      )
+    )
+  }
+
+  source_for_matching <-
+    unresolved %>%
+    dplyr::transmute(
+      source_record_id =
+        .data$source_record_id,
+      enterprise_name_source =
+        .data$enterprise_name,
+      street_source =
+        .data$street,
+      postal_code_source =
+        as.character(
+          .data$postal_code
+        ),
+      city_source =
+        .data$city,
+      legal_form_source =
+        .data$legal_form,
+      nace_code_source =
+        .data$nace_code
+    )
+
+  register_for_matching <-
+    prepare_register_linkage_records(
+      register_entities
+    )
+
+  ranked_candidates <-
+    generate_linkage_candidates(
+      source_for_matching,
+      register_for_matching
+    ) %>%
+    add_linkage_features() %>%
+    score_and_rank_similarity_candidates(
+      similarity_weights
+    ) %>%
+    dplyr::left_join(
+      unresolved %>%
+        dplyr::select(
+          source_record_id,
+          true_register_id
+        ),
+      by = "source_record_id"
+    ) %>%
+    dplyr::mutate(
+      is_true_candidate =
+        .data$register_id ==
+          .data$true_register_id
+    )
+
+  candidate_evidence <-
+    ranked_candidates %>%
+    dplyr::group_by(
+      .data$source_record_id
+    ) %>%
+    dplyr::summarise(
+      candidate_count =
+        dplyr::n(),
+
+      true_candidate_present =
+        any(
+          .data$is_true_candidate
+        ),
+
+      true_candidate_rank = {
+        index <-
+          which(
+            .data$is_true_candidate
+          )
+
+        if (
+          length(index) > 0L
+        ) {
+          .data$candidate_rank[
+            index[1]
+          ]
+        } else {
+          NA_integer_
+        }
+      },
+
+      true_candidate_score = {
+        index <-
+          which(
+            .data$is_true_candidate
+          )
+
+        if (
+          length(index) > 0L
+        ) {
+          .data$similarity_score[
+            index[1]
+          ]
+        } else {
+          NA_real_
+        }
+      },
+
+      top_candidate_register_id =
+        dplyr::first(
+          .data$register_id
+        ),
+
+      top_candidate_canonical_firm_id =
+        dplyr::first(
+          .data$canonical_firm_id
+        ),
+
+      top_similarity_score =
+        dplyr::first(
+          .data$similarity_score
+        ),
+
+      second_similarity_score =
+        if (
+          dplyr::n() >= 2L
+        ) {
+          dplyr::nth(
+            .data$similarity_score,
+            2
+          )
+        } else {
+          NA_real_
+        },
+
+      similarity_margin =
+        ifelse(
+          is.na(
+            second_similarity_score
+          ),
+          top_similarity_score,
+          top_similarity_score -
+            second_similarity_score
+        ),
+
+      top_candidate_correct =
+        dplyr::first(
+          .data$is_true_candidate
+        ),
+
+      .groups = "drop"
+    )
+
+  unresolved %>%
+    dplyr::select(
+      truth_firm_id,
+      source_record_id,
+      business_id,
+      true_register_id
+    ) %>%
+    dplyr::left_join(
+      candidate_evidence,
+      by = "source_record_id"
+    ) %>%
+    dplyr::mutate(
+      identifier_issue =
+        dplyr::if_else(
+          is.na(
+            .data$business_id
+          ),
+          "missing_identifier",
+          "identifier_not_found"
+        ),
+
+      candidate_count =
+        dplyr::coalesce(
+          .data$candidate_count,
+          0L
+        ),
+
+      true_candidate_present =
+        dplyr::coalesce(
+          .data$true_candidate_present,
+          FALSE
+        ),
+
+      top_candidate_correct =
+        dplyr::coalesce(
+          .data$top_candidate_correct,
+          FALSE
+        ),
+
+      scenario =
+        scenario_name,
+
+      source =
+        source_name,
+
+      .before =
+        "truth_firm_id"
+    )
+}
+
+
+summarise_similarity_benchmark <- function(
+  benchmark_records
+) {
+  benchmark_records %>%
+    dplyr::group_by(
+      .data$scenario,
+      .data$source
+    ) %>%
+    dplyr::summarise(
+      unresolved_records =
+        dplyr::n(),
+
+      missing_identifier =
+        sum(
+          .data$identifier_issue ==
+            "missing_identifier"
+        ),
+
+      identifier_not_found =
+        sum(
+          .data$identifier_issue ==
+            "identifier_not_found"
+        ),
+
+      candidate_recall =
+        mean(
+          .data$true_candidate_present
+        ),
+
+      top1_accuracy =
+        mean(
+          .data$top_candidate_correct
+        ),
+
+      scorable_top_rate =
+        mean(
+          !is.na(
+            .data$top_similarity_score
+          )
+        ),
+
+      median_top_score =
+        if (
+          all(
+            is.na(
+              .data$top_similarity_score
+            )
+          )
+        ) {
+          NA_real_
+        } else {
+          stats::median(
+            .data$top_similarity_score,
+            na.rm = TRUE
+          )
+        },
+
+      median_margin =
+        if (
+          all(
+            is.na(
+              .data$similarity_margin
+            )
+          )
+        ) {
+          NA_real_
+        } else {
+          stats::median(
+            .data$similarity_margin,
+            na.rm = TRUE
+          )
+        },
+
+      .groups = "drop"
+    )
+}
