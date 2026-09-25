@@ -31,6 +31,7 @@ library(tidyr)
 library(readr)
 
 source("R/helpers/synthetic_identity.R")
+source("R/synthetic.R")
 
 set.seed(2025)
 
@@ -42,51 +43,17 @@ dir.create("data/truth", showWarnings = FALSE, recursive = TRUE)
 # 1. Create reference structures
 # ----------------------------------------------------------------------
 
-regions <- tibble(
-  region_code = sprintf("R%02d", 1:10),
-  region_name = paste("Region", 1:10)
-)
+reference_structures <-
+  create_synthetic_reference_structures()
 
-industry_params <- tibble(
-  nace_code = c("G47", "C10", "C29", "H49", "I55", "I56"),
-  industry_name = c(
-    "Retail Trade",
-    "Food Manufacturing",
-    "Automotive Manufacturing",
-    "Land Transport",
-    "Accommodation",
-    "Food & Beverage Services"
-  ),
-  employment_center = c(18, 35, 70, 28, 20, 15),
-  turnover_per_employee = c(
-    180000,
-    140000,
-    210000,
-    120000,
-    110000,
-    90000
-  ),
-  employment_growth_mean = c(
-    0.015,
-    0.010,
-    0.008,
-    0.012,
-    0.020,
-    0.018
-  ),
-  productivity_growth_mean = c(
-    0.035,
-    0.030,
-    0.030,
-    0.025,
-    0.040,
-    0.035
-  )
-)
+regions <-
+  reference_structures$regions
 
-legal_forms <- tibble(
-  legal_form = c("AG", "GmbH", "KG", "OHG", "Einzelunternehmen")
-)
+industry_params <-
+  reference_structures$industry_params
+
+legal_forms <-
+  reference_structures$legal_forms
 
 # ----------------------------------------------------------------------
 # 2. Generate stable latent enterprise characteristics
@@ -94,78 +61,12 @@ legal_forms <- tibble(
 
 n_firms <- 1500
 
-firm_truth <- tibble(
-  truth_firm_id = sprintf("F%05d", 1:n_firms),
-  region_code = sample(
-    regions$region_code,
-    n_firms,
-    replace = TRUE
-  ),
-  nace_code = sample(
-    industry_params$nace_code,
-    n_firms,
-    replace = TRUE
-  ),
-  legal_form = sample(
-    legal_forms$legal_form,
-    n_firms,
-    replace = TRUE
-  ),
-  foundation_year = sample(
-    1965:2022,
-    n_firms,
-    replace = TRUE
-  )
-) %>%
-  left_join(industry_params, by = "nace_code") %>%
-  mutate(
-    # Firm-specific employment scale around the industry centre.
-    baseline_employment = pmax(
-      1,
-      round(
-        rlnorm(
-          n(),
-          meanlog = log(employment_center),
-          sdlog = 0.65
-        )
-      )
-    ),
-
-    # Persistent turnover-per-employee heterogeneity across firms.
-    firm_productivity_factor = rlnorm(
-      n(),
-      meanlog = 0,
-      sdlog = 0.30
-    ),
-
-    # Firm-specific medium-term employment growth.
-    employment_growth_rate = pmin(
-      0.12,
-      pmax(
-        -0.08,
-        rnorm(
-          n(),
-          mean = employment_growth_mean,
-          sd = 0.025
-        )
-      )
-    ),
-
-    # Firm-specific growth in turnover per employee.
-    productivity_growth_rate = pmin(
-      0.12,
-      pmax(
-        -0.06,
-        rnorm(
-          n(),
-          mean = productivity_growth_mean,
-          sd = 0.025
-        )
-      )
-    ),
-
-    turnover_per_employee_2023 =
-      turnover_per_employee * firm_productivity_factor
+firm_truth <-
+  generate_latent_enterprises(
+    regions,
+    industry_params,
+    legal_forms,
+    n_firms
   )
 
 # ----------------------------------------------------------------------
@@ -174,42 +75,10 @@ firm_truth <- tibble(
 
 years <- 2023:2025
 
-annual_truth <- expand_grid(
-  truth_firm_id = firm_truth$truth_firm_id,
-  year = years
-) %>%
-  left_join(firm_truth, by = "truth_firm_id") %>%
-  mutate(
-    years_since_2023 = year - 2023L,
-
-    # Small annual deviations around the firm-specific employment path.
-    employment_noise = exp(
-      rnorm(n(), mean = 0, sd = 0.015)
-    ),
-
-    employees_true = pmax(
-      1,
-      round(
-        baseline_employment *
-          (1 + employment_growth_rate)^years_since_2023 *
-          employment_noise
-      )
-    ),
-
-    # Small annual deviations around the turnover-per-employee path.
-    productivity_noise = exp(
-      rnorm(n(), mean = 0, sd = 0.020)
-    ),
-
-    turnover_per_employee_true =
-      turnover_per_employee_2023 *
-      (1 + productivity_growth_rate)^years_since_2023 *
-      productivity_noise,
-
-    annual_turnover_true = round(
-      employees_true * turnover_per_employee_true,
-      2
-    )
+annual_truth <-
+  generate_annual_latent_states(
+    firm_truth,
+    years
   )
 
 # ----------------------------------------------------------------------
@@ -301,7 +170,7 @@ months <- seq.Date(
   by = "month"
 )
 
-source("R/synthetic.R")
+
 
 employment_seasonality <- list(
   G47 = c(
