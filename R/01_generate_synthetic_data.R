@@ -301,9 +301,7 @@ months <- seq.Date(
   by = "month"
 )
 
-normalize_mean_one <- function(x) {
-  x / mean(x)
-}
+source("R/synthetic.R")
 
 employment_seasonality <- list(
   G47 = c(
