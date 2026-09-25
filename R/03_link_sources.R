@@ -27,6 +27,11 @@ source(
 
 source("R/config.R")
 
+source("R/linkage_candidates.R")
+source("R/linkage_features.R")
+source("R/linkage_similarity.R")
+source("R/linkage_decision.R")
+
 project_config <- load_project_config()
 
 baseline_similarity_config <-
@@ -79,97 +84,44 @@ accounting <- read_csv(
 )
 
 # ----------------------------------------------------------------------
-# 3. Validate the register reference identifier
+# 3. Prepare canonical register reference
 # ----------------------------------------------------------------------
 
-if (any(is.na(firms$business_id))) {
-  stop(
-    "Register reference source contains missing business_id values."
+register_reference <-
+  prepare_register_linkage_reference(
+    firms
   )
-}
 
-duplicate_business_ids <- firms %>%
-  count(business_id) %>%
-  filter(n > 1)
+register_entities <-
+  register_reference$entities
 
-if (nrow(duplicate_business_ids) > 0) {
-  stop(
-    "Register reference source contains duplicate business_id values: ",
-    nrow(duplicate_business_ids)
-  )
-}
+register_lookup <-
+  register_reference$lookup
 
 # ----------------------------------------------------------------------
-# 4. Define canonical enterprises from the register source
+# 4. Extract source enterprise identities
 # ----------------------------------------------------------------------
 
-register_entities <- firms %>%
-  arrange(register_id) %>%
-  mutate(
-    canonical_firm_id = sprintf(
-      "C%06d",
-      seq_len(n())
-    )
+employment_entities <-
+  extract_source_entities(
+    employment,
+    "employment_source_id"
   )
 
-register_lookup <- register_entities %>%
-  select(
-    canonical_firm_id,
-    register_id,
-    business_id
+turnover_entities <-
+  extract_source_entities(
+    turnover,
+    "turnover_source_id"
+  )
+
+accounting_entities <-
+  extract_source_entities(
+    accounting,
+    "accounting_source_id"
   )
 
 # ----------------------------------------------------------------------
-# 5. Extract one identity record per source enterprise
-# ----------------------------------------------------------------------
-
-employment_entities <- employment %>%
-  distinct(
-    employment_source_id,
-    business_id,
-    enterprise_name,
-    street,
-    postal_code,
-    city,
-    legal_form,
-    nace_code
-  )
-
-turnover_entities <- turnover %>%
-  distinct(
-    turnover_source_id,
-    business_id,
-    enterprise_name,
-    street,
-    postal_code,
-    city,
-    legal_form,
-    nace_code
-  )
-
-accounting_entities <- accounting %>%
-  distinct(
-    accounting_source_id,
-    business_id,
-    enterprise_name,
-    street,
-    postal_code,
-    city,
-    legal_form,
-    nace_code
-  )
-
-# ----------------------------------------------------------------------
-# 6. Similarity-based linkage modules
-# ----------------------------------------------------------------------
-
-source("R/linkage_candidates.R")
-source("R/linkage_features.R")
-source("R/linkage_similarity.R")
-source("R/linkage_decision.R")
-
-# ----------------------------------------------------------------------
-# 7. Link employment enterprises
+# 5. Link employment enterprises
 # ----------------------------------------------------------------------
 
 employment_linkage <-
@@ -203,7 +155,7 @@ employment_similarity <-
   employment_linkage$similarity
 
 # ----------------------------------------------------------------------
-# 8. Link turnover enterprises
+# 6. Link turnover enterprises
 # ----------------------------------------------------------------------
 
 turnover_linkage <-
@@ -237,7 +189,7 @@ turnover_similarity <-
   turnover_linkage$similarity
 
 # ----------------------------------------------------------------------
-# 9. Link accounting enterprises
+# 7. Link accounting enterprises
 # ----------------------------------------------------------------------
 
 accounting_linkage <-
@@ -271,121 +223,68 @@ accounting_similarity <-
   accounting_linkage$similarity
 
 # ----------------------------------------------------------------------
-# 10. Prepare accounting linkage crosswalk
+# 8. Build linkage outputs
 # ----------------------------------------------------------------------
 
-accounting_crosswalk <- accounting_links %>%
-  transmute(
-    source = "accounting",
-    source_record_id =
-      accounting_source_id,
-    business_id,
-    canonical_firm_id,
-    register_id,
-    candidate_register_id,
-    linkage_status,
-    linkage_method,
-    top_similarity_score,
-    second_similarity_score,
-    similarity_margin
+register_links <-
+  build_register_linkage_crosswalk(
+    register_entities
   )
 
-# ----------------------------------------------------------------------
-# 11. Build unified linkage crosswalk
-# ----------------------------------------------------------------------
-
-register_links <- register_entities %>%
-  transmute(
-    source = "register",
-    source_record_id = register_id,
-    business_id,
-    canonical_firm_id,
-    register_id,
-    candidate_register_id =
-      NA_character_,
-    linkage_status = "reference",
-    linkage_method = "register_reference",
-    top_similarity_score =
-      NA_real_,
-    second_similarity_score =
-      NA_real_,
-    similarity_margin =
-      NA_real_
+employment_output <-
+  build_source_linkage_output(
+    employment_links,
+    employment_similarity$candidates,
+    "employment",
+    "employment_source_id"
   )
 
-employment_crosswalk <- employment_links %>%
-  transmute(
-    source = "employment",
-    source_record_id =
-      employment_source_id,
-    business_id,
-    canonical_firm_id,
-    register_id,
-    candidate_register_id,
-    linkage_status,
-    linkage_method,
-    top_similarity_score,
-    second_similarity_score,
-    similarity_margin
+turnover_output <-
+  build_source_linkage_output(
+    turnover_links,
+    turnover_similarity$candidates,
+    "turnover",
+    "turnover_source_id"
   )
 
-turnover_crosswalk <- turnover_links %>%
-  transmute(
-    source = "turnover",
-    source_record_id =
-      turnover_source_id,
-    business_id,
-    canonical_firm_id,
-    register_id,
-    candidate_register_id,
-    linkage_status,
-    linkage_method,
-    top_similarity_score,
-    second_similarity_score,
-    similarity_margin
+accounting_output <-
+  build_source_linkage_output(
+    accounting_links,
+    accounting_similarity$candidates,
+    "accounting",
+    "accounting_source_id"
   )
 
-linkage_crosswalk <- bind_rows(
-  register_links,
-  employment_crosswalk,
-  turnover_crosswalk,
-  accounting_crosswalk
-)
+employment_crosswalk <-
+  employment_output$crosswalk
 
-# ----------------------------------------------------------------------
-# 12. Preserve candidate-level evidence
-# ----------------------------------------------------------------------
+turnover_crosswalk <-
+  turnover_output$crosswalk
 
-employment_candidates <-
-  employment_similarity$candidates %>%
-  mutate(
-    source = "employment"
+accounting_crosswalk <-
+  accounting_output$crosswalk
+
+linkage_crosswalk <-
+  bind_rows(
+    register_links,
+    employment_crosswalk,
+    turnover_crosswalk,
+    accounting_crosswalk
   )
 
-turnover_candidates <-
-  turnover_similarity$candidates %>%
-  mutate(
-    source = "turnover"
-  )
-
-accounting_candidates <-
-  accounting_similarity$candidates %>%
-  mutate(
-    source = "accounting"
-  )
-
-linkage_candidates <- bind_rows(
-  employment_candidates,
-  turnover_candidates,
-  accounting_candidates
-) %>%
+linkage_candidates <-
+  bind_rows(
+    employment_output$candidates,
+    turnover_output$candidates,
+    accounting_output$candidates
+  ) %>%
   select(
     source,
     everything()
   )
 
 # ----------------------------------------------------------------------
-# 13. Report linkage results
+# 9. Report linkage results
 # ----------------------------------------------------------------------
 
 message("Employment linkage:")
@@ -407,7 +306,7 @@ print(
 )
 
 # ----------------------------------------------------------------------
-# 14. Write linkage outputs
+# 10. Write linkage outputs
 # ----------------------------------------------------------------------
 
 write_csv(

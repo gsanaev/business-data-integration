@@ -231,3 +231,69 @@ link_source_entities <- function(
     similarity = similarity
   )
 }
+
+build_register_linkage_crosswalk <- function(
+  register_entities
+) {
+  register_entities %>%
+    transmute(
+      source = "register",
+      source_record_id =
+        register_id,
+      business_id,
+      canonical_firm_id,
+      register_id,
+      candidate_register_id =
+        NA_character_,
+      linkage_status =
+        "reference",
+      linkage_method =
+        "register_reference",
+      top_similarity_score =
+        NA_real_,
+      second_similarity_score =
+        NA_real_,
+      similarity_margin =
+        NA_real_
+    )
+}
+
+
+build_source_linkage_output <- function(
+  source_links,
+  similarity_candidates,
+  source_name,
+  source_id_column
+) {
+  crosswalk <-
+    source_links %>%
+    transmute(
+      source =
+        source_name,
+
+      source_record_id =
+        .data[[source_id_column]],
+
+      business_id,
+      canonical_firm_id,
+      register_id,
+      candidate_register_id,
+      linkage_status,
+      linkage_method,
+      top_similarity_score,
+      second_similarity_score,
+      similarity_margin
+    )
+
+  candidates <-
+    similarity_candidates %>%
+    mutate(
+      source =
+        source_name
+    )
+
+  list(
+    crosswalk = crosswalk,
+    candidates = candidates
+  )
+}

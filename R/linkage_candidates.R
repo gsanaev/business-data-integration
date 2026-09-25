@@ -86,3 +86,77 @@ generate_linkage_candidates <- function(
           nace_code_register
     )
 }
+
+prepare_register_linkage_reference <- function(
+  firms
+) {
+  if (any(is.na(firms$business_id))) {
+    stop(
+      "Register reference source contains missing business_id values."
+    )
+  }
+
+  duplicate_business_ids <-
+    firms %>%
+    count(
+      business_id
+    ) %>%
+    filter(
+      n > 1
+    )
+
+  if (nrow(duplicate_business_ids) > 0) {
+    stop(
+      "Register reference source contains duplicate business_id values: ",
+      nrow(duplicate_business_ids)
+    )
+  }
+
+  register_entities <-
+    firms %>%
+    arrange(
+      register_id
+    ) %>%
+    mutate(
+      canonical_firm_id = sprintf(
+        "C%06d",
+        seq_len(n())
+      )
+    )
+
+  register_lookup <-
+    register_entities %>%
+    select(
+      canonical_firm_id,
+      register_id,
+      business_id
+    )
+
+  list(
+    entities = register_entities,
+    lookup = register_lookup
+  )
+}
+
+
+extract_source_entities <- function(
+  source_data,
+  source_id_column
+) {
+  identity_columns <- c(
+    source_id_column,
+    "business_id",
+    "enterprise_name",
+    "street",
+    "postal_code",
+    "city",
+    "legal_form",
+    "nace_code"
+  )
+
+  source_data %>%
+    select(
+      all_of(identity_columns)
+    ) %>%
+    distinct()
+}
