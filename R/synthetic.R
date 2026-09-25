@@ -247,3 +247,192 @@ generate_annual_latent_states <- function(
         )
     )
 }
+
+generate_register_source <- function(
+  annual_truth
+) {
+  register_2025 <-
+    annual_truth %>%
+    filter(
+      year == 2025
+    ) %>%
+    transmute(
+      truth_firm_id,
+      region_code,
+      nace_code,
+      legal_form,
+      foundation_year,
+      employees_true_2025 =
+        employees_true
+    )
+
+  revenue_2024 <-
+    annual_truth %>%
+    filter(
+      year == 2024
+    ) %>%
+    transmute(
+      truth_firm_id,
+      revenue_true_2024 =
+        annual_turnover_true
+    )
+
+  firms <-
+    register_2025 %>%
+    left_join(
+      revenue_2024,
+      by = "truth_firm_id"
+    ) %>%
+    mutate(
+      register_reference_year =
+        2025L,
+
+      revenue_reference_year =
+        2024L,
+
+      employees =
+        pmax(
+          1,
+          round(
+            employees_true_2025 *
+              exp(
+                rnorm(
+                  n(),
+                  mean = 0,
+                  sd = 0.030
+                )
+              )
+          )
+        ),
+
+      revenue_last_year =
+        round(
+          revenue_true_2024 *
+            exp(
+              rnorm(
+                n(),
+                mean = 0,
+                sd = 0.040
+              )
+            ),
+          2
+        )
+    ) %>%
+    select(
+      truth_firm_id,
+      region_code,
+      nace_code,
+      legal_form,
+      employees,
+      foundation_year,
+      revenue_last_year,
+      register_reference_year,
+      revenue_reference_year
+    )
+
+  firms %>%
+    mutate(
+      employees_register_complete =
+        employees,
+
+      revenue_last_year_complete =
+        revenue_last_year,
+
+      employees =
+        ifelse(
+          runif(n()) < 0.02,
+          NA,
+          employees
+        ),
+
+      revenue_last_year =
+        ifelse(
+          runif(n()) < 0.02,
+          -revenue_last_year,
+          revenue_last_year
+        )
+    )
+}
+
+
+create_monthly_reference_profiles <- function() {
+  months <- seq.Date(
+    from = as.Date("2023-01-01"),
+    to = as.Date("2025-12-01"),
+    by = "month"
+  )
+
+  employment_seasonality <- list(
+    G47 = c(
+      1.00, 0.98, 1.00, 1.02, 1.04, 1.05,
+      1.06, 1.07, 1.08, 1.10, 1.18, 1.25
+    ),
+    C10 = c(
+      1.00, 1.00, 1.01, 1.01, 1.02, 1.02,
+      1.03, 1.00, 1.00, 1.01, 1.01, 1.02
+    ),
+    C29 = c(
+      1.00, 1.00, 1.00, 1.02, 1.02, 1.03,
+      1.03, 0.80, 1.00, 1.02, 1.03, 1.05
+    ),
+    H49 = c(
+      1.00, 1.01, 1.01, 1.02, 1.03, 1.05,
+      1.07, 1.06, 1.05, 1.03, 1.02, 1.01
+    ),
+    I55 = c(
+      0.70, 0.75, 0.90, 1.10, 1.40, 1.60,
+      1.80, 1.70, 1.40, 1.10, 0.80, 0.70
+    ),
+    I56 = c(
+      0.85, 0.90, 0.95, 1.05, 1.15, 1.20,
+      1.30, 1.25, 1.10, 1.00, 0.95, 0.90
+    )
+  )
+
+  employment_seasonality <-
+    lapply(
+      employment_seasonality,
+      normalize_mean_one
+    )
+
+  turnover_seasonality <- list(
+    G47 = c(
+      0.86, 0.84, 0.88, 0.91, 0.94, 0.96,
+      0.98, 0.97, 1.00, 1.06, 1.24, 1.46
+    ),
+    C10 = c(
+      0.97, 0.98, 1.00, 1.02, 1.03, 1.04,
+      1.02, 0.97, 1.00, 1.03, 1.04, 0.90
+    ),
+    C29 = c(
+      0.96, 0.99, 1.02, 1.04, 1.05, 1.06,
+      1.02, 0.74, 1.05, 1.09, 1.10, 0.88
+    ),
+    H49 = c(
+      0.93, 0.95, 0.98, 1.01, 1.04, 1.07,
+      1.10, 1.09, 1.06, 1.02, 0.98, 0.94
+    ),
+    I55 = c(
+      0.61, 0.66, 0.82, 1.06, 1.34, 1.57,
+      1.74, 1.66, 1.34, 1.04, 0.76, 0.60
+    ),
+    I56 = c(
+      0.82, 0.87, 0.93, 1.04, 1.13, 1.20,
+      1.27, 1.23, 1.09, 1.02, 0.96, 0.88
+    )
+  )
+
+  turnover_seasonality <-
+    lapply(
+      turnover_seasonality,
+      normalize_mean_one
+    )
+
+  list(
+    months = months,
+    employment_seasonality =
+      employment_seasonality,
+    turnover_seasonality =
+      turnover_seasonality
+  )
+}
