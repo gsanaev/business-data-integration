@@ -187,9 +187,87 @@ list(
 
       list(
         operational = operational_sources,
-        truth = truth_outputs
+        truth = truth_outputs,
+        attached_sources = attached_sources
       )
     }
+  ),
+
+  tar_target(
+    identity_scenarios,
+    {
+      scenarios <-
+        project_config$scenarios$scenarios
+
+      baseline <-
+        apply_identity_scenario_to_sources(
+          synthetic_baseline$attached_sources,
+          "baseline",
+          scenarios$baseline,
+          scenarios$baseline
+        )
+
+      scenario_seed <- 202603L
+
+      set.seed(
+        scenario_seed
+      )
+
+      moderate <-
+        apply_identity_scenario_to_sources(
+          synthetic_baseline$attached_sources,
+          "moderate",
+          scenarios$moderate,
+          scenarios$baseline
+        )
+
+      # Reuse the same random-number stream so difficulty levels
+      # are compared under common random draws where possible.
+      set.seed(
+        scenario_seed
+      )
+
+      difficult <-
+        apply_identity_scenario_to_sources(
+          synthetic_baseline$attached_sources,
+          "difficult",
+          scenarios$difficult,
+          scenarios$baseline
+        )
+
+      list(
+        baseline = baseline,
+        moderate = moderate,
+        difficult = difficult
+      )
+    }
+  ),
+
+  tar_target(
+    scenario_operational_sources,
+    list(
+      baseline =
+        build_operational_synthetic_sources(
+          identity_scenarios$baseline$sources
+        ),
+      moderate =
+        build_operational_synthetic_sources(
+          identity_scenarios$moderate$sources
+        ),
+      difficult =
+        build_operational_synthetic_sources(
+          identity_scenarios$difficult$sources
+        )
+    )
+  ),
+
+  tar_target(
+    scenario_corruption_log,
+    bind_rows(
+      identity_scenarios$baseline$corruption_log,
+      identity_scenarios$moderate$corruption_log,
+      identity_scenarios$difficult$corruption_log
+    )
   ),
 
   tar_target(
