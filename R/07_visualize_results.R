@@ -24,6 +24,8 @@ library(readr)
 library(ggplot2)
 library(lubridate)
 
+source("R/reporting.R")
+
 dir.create(
   "output/figures",
   showWarnings = FALSE,
@@ -56,51 +58,9 @@ coherence_events <- read_csv(
 # 2. Validate required plotting inputs
 # ----------------------------------------------------------------------
 
-required_sector_columns <- c(
-  "year",
-  "nace_code",
-  "total_turnover",
-  "turnover_per_employee"
+validate_sector_plot_inputs(
+  indicators_sector
 )
-
-missing_sector_columns <- setdiff(
-  required_sector_columns,
-  names(indicators_sector)
-)
-
-if (
-  length(missing_sector_columns) > 0L
-) {
-  stop(
-    "Missing required sector indicator columns: ",
-    paste(
-      missing_sector_columns,
-      collapse = ", "
-    )
-  )
-}
-
-if (
-  any(
-    indicators_sector$total_turnover <= 0,
-    na.rm = TRUE
-  )
-) {
-  stop(
-    "Non-positive annual sector turnover detected."
-  )
-}
-
-if (
-  any(
-    indicators_sector$turnover_per_employee <= 0,
-    na.rm = TRUE
-  )
-) {
-  stop(
-    "Non-positive sector turnover-per-employee detected."
-  )
-}
 
 # ----------------------------------------------------------------------
 # 3. Common figure settings
@@ -110,78 +70,23 @@ figure_width <- 8
 figure_height <- 5.5
 figure_dpi <- 160
 
-base_theme <- theme_minimal(
-  base_size = 11
-) +
-  theme(
-    plot.title.position = "plot",
-    plot.title = element_text(
-      face = "bold"
-    ),
-    plot.subtitle = element_text(
-      margin = margin(
-        b = 8
-      )
-    ),
-    legend.position = "bottom",
-    panel.grid.minor = element_blank()
-  )
-
-source("R/reporting.R")
+base_theme <-
+  build_reporting_theme()
 
 # ----------------------------------------------------------------------
 # 4. Monthly total turnover
 # ----------------------------------------------------------------------
 
-monthly_turnover <- panel %>%
-  group_by(month) %>%
-  summarise(
-    usable_enterprises =
-      n_distinct(
-        canonical_firm_id[
-          !is.na(
-            turnover_monthly
-          )
-        ]
-      ),
-
-    total_turnover =
-      sum(
-        turnover_monthly,
-        na.rm = TRUE
-      ),
-
-    .groups = "drop"
+monthly_turnover <-
+  summarise_monthly_turnover(
+    panel
   )
 
-p_monthly_turnover <- ggplot(
-  monthly_turnover,
-  aes(
-    x = month,
-    y = total_turnover
+p_monthly_turnover <-
+  build_monthly_turnover_plot(
+    monthly_turnover,
+    base_theme
   )
-) +
-  geom_line(
-    linewidth = 0.8
-  ) +
-  labs(
-    title =
-      "Monthly Total Turnover",
-
-    subtitle =
-      "Integrated enterprise observations, 2023–2025",
-
-    x =
-      "Month",
-
-    y =
-      "Total turnover"
-  ) +
-  scale_y_continuous(
-    labels =
-      format_millions
-  ) +
-  base_theme
 
 ggsave(
   filename =
@@ -204,50 +109,11 @@ ggsave(
 # 5. Annual turnover by sector
 # ----------------------------------------------------------------------
 
-p_annual_turnover_sector <- indicators_sector %>%
-  ggplot(
-    aes(
-      x = year,
-      y = total_turnover,
-      group = nace_code,
-      linetype = nace_code
-    )
-  ) +
-  geom_line(
-    linewidth = 0.8
-  ) +
-  geom_point(
-    size = 2
-  ) +
-  scale_x_continuous(
-    breaks =
-      sort(
-        unique(
-          indicators_sector$year
-        )
-      )
-  ) +
-  scale_y_continuous(
-    labels =
-      format_millions
-  ) +
-  labs(
-    title =
-      "Annual Turnover by Sector",
-
-    subtitle =
-      "Annual totals use enterprise-years with complete monthly turnover coverage",
-
-    x =
-      "Year",
-
-    y =
-      "Total turnover",
-
-    linetype =
-      "NACE code"
-  ) +
-  base_theme
+p_annual_turnover_sector <-
+  build_annual_turnover_sector_plot(
+    indicators_sector,
+    base_theme
+  )
 
 ggsave(
   filename =
@@ -270,53 +136,11 @@ ggsave(
 # 6. Annual turnover per employee by sector
 # ----------------------------------------------------------------------
 
-p_turnover_employee_sector <- indicators_sector %>%
-  ggplot(
-    aes(
-      x = year,
-      y = turnover_per_employee,
-      group = nace_code,
-      linetype = nace_code
-    )
-  ) +
-  geom_line(
-    linewidth = 0.8
-  ) +
-  geom_point(
-    size = 2
-  ) +
-  scale_x_continuous(
-    breaks =
-      sort(
-        unique(
-          indicators_sector$year
-        )
-      )
-  ) +
-  scale_y_continuous(
-    labels =
-      format_thousands
-  ) +
-  labs(
-    title =
-      "Annual Turnover per Employee by Sector",
-
-    subtitle =
-      paste(
-        "Ratio uses the common population with complete",
-        "turnover and employment coverage"
-      ),
-
-    x =
-      "Year",
-
-    y =
-      "Turnover per employee",
-
-    linetype =
-      "NACE code"
-  ) +
-  base_theme
+p_turnover_employee_sector <-
+  build_turnover_employee_sector_plot(
+    indicators_sector,
+    base_theme
+  )
 
 ggsave(
   filename =
@@ -339,89 +163,16 @@ ggsave(
 # 7. Cross-source coherence outcomes
 # ----------------------------------------------------------------------
 
-coherence_plot_data <- coherence_events %>%
-  mutate(
-    outcome = case_when(
-      applicability_status !=
-        "applicable" ~
-        "Not assessed",
-
-      coherence_status ==
-        "large_difference" ~
-        "Large difference",
-
-      coherence_status ==
-        "within_expected_range" ~
-        "Within expected range",
-
-      TRUE ~
-        "Other"
-    )
-  ) %>%
-  count(
-    rule_id,
-    outcome,
-    name = "events"
-  ) %>%
-  group_by(rule_id) %>%
-  mutate(
-    share =
-      events /
-        sum(events)
-  ) %>%
-  ungroup()
-
-coherence_plot_data$outcome <- factor(
-  coherence_plot_data$outcome,
-  levels = c(
-    "Within expected range",
-    "Large difference",
-    "Not assessed",
-    "Other"
+coherence_plot_data <-
+  prepare_coherence_plot_data(
+    coherence_events
   )
-)
 
-p_coherence <- ggplot(
-  coherence_plot_data,
-  aes(
-    x = rule_id,
-    y = share,
-    fill = outcome
+p_coherence <-
+  build_coherence_outcomes_plot(
+    coherence_plot_data,
+    base_theme
   )
-) +
-  geom_col() +
-  coord_flip() +
-  scale_y_continuous(
-    labels = function(x) {
-      paste0(
-        round(
-          100 * x
-        ),
-        "%"
-      )
-    },
-    limits = c(
-      0,
-      1
-    )
-  ) +
-  labs(
-    title =
-      "Cross-Source Coherence Outcomes",
-
-    subtitle =
-      "Outcome shares by semantic coherence rule",
-
-    x =
-      "Coherence rule",
-
-    y =
-      "Share of events",
-
-    fill =
-      "Outcome"
-  ) +
-  base_theme
 
 ggsave(
   filename =
