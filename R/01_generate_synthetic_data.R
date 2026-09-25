@@ -178,251 +178,61 @@ accounting_identity <-
 # 11. Attach source identities
 # ----------------------------------------------------------------------
 
-firms_with_identity <- firms_inconsistent %>%
-  left_join(
+attached_sources <-
+  attach_synthetic_source_identities(
+    firms_inconsistent,
+    employment,
+    turnover,
+    accounting,
     register_identity,
-    by = "truth_firm_id"
-  )
-
-employment_with_identity <- employment %>%
-  left_join(
     employment_identity,
-    by = "truth_firm_id"
-  )
-
-turnover_with_identity <- turnover %>%
-  left_join(
     turnover_identity,
-    by = "truth_firm_id"
-  )
-
-accounting_with_identity <- accounting %>%
-  left_join(
-    accounting_identity,
-    by = c(
-      "truth_firm_id",
-      "nace_code"
-    )
+    accounting_identity
   )
 
 # ----------------------------------------------------------------------
 # 12. Build operational source datasets
 # ----------------------------------------------------------------------
 
-firms_operational <- firms_with_identity %>%
-  select(
-    register_id,
-    business_id,
-    enterprise_name,
-    street,
-    postal_code,
-    city,
-    region_code,
-    nace_code,
-    legal_form,
-    employees,
-    foundation_year,
-    revenue_last_year,
-    register_reference_year,
-    revenue_reference_year
+operational_sources <-
+  build_operational_synthetic_sources(
+    attached_sources
   )
 
-employment_operational <- employment_with_identity %>%
-  select(
-    employment_source_id,
-    business_id,
-    enterprise_name,
-    street,
-    postal_code,
-    city,
-    legal_form,
-    month,
-    nace_code,
-    region_code,
-    seasonal_factor,
-    employees
-  )
+firms_operational <-
+  operational_sources$firms
 
-turnover_operational <- turnover_with_identity %>%
-  select(
-    turnover_source_id,
-    business_id,
-    enterprise_name,
-    street,
-    postal_code,
-    city,
-    legal_form,
-    month,
-    nace_code,
-    region_code,
-    turnover
-  )
+employment_operational <-
+  operational_sources$employment
 
-accounting_operational <- accounting_with_identity %>%
-  select(
-    accounting_source_id,
-    business_id,
-    enterprise_name,
-    street,
-    postal_code,
-    city,
-    legal_form,
-    reference_year,
-    nace_code,
-    operating_revenue,
-    purchases_goods_services,
-    personnel_expense
-  )
+turnover_operational <-
+  operational_sources$turnover
+
+accounting_operational <-
+  operational_sources$accounting
 
 # ----------------------------------------------------------------------
 # 13. Build hidden truth datasets
 # ----------------------------------------------------------------------
 
-enterprise_truth <- identity_truth %>%
-  select(
-    truth_firm_id,
-    business_id,
-    enterprise_name,
-    street,
-    postal_code,
-    city,
-    region_code,
-    nace_code,
-    legal_form,
-    foundation_year
+truth_outputs <-
+  build_synthetic_truth_outputs(
+    identity_truth,
+    register_identity,
+    employment_identity,
+    turnover_identity,
+    accounting_identity,
+    attached_sources
   )
 
-linkage_truth <- bind_rows(
-  register_identity %>%
-    transmute(
-      source = "register",
-      source_record_id = register_id,
-      truth_firm_id
-    ),
+enterprise_truth <-
+  truth_outputs$enterprise
 
-  employment_identity %>%
-    transmute(
-      source = "employment",
-      source_record_id = employment_source_id,
-      truth_firm_id
-    ),
+linkage_truth <-
+  truth_outputs$linkage
 
-  turnover_identity %>%
-    transmute(
-      source = "turnover",
-      source_record_id = turnover_source_id,
-      truth_firm_id
-    ),
-
-  accounting_identity %>%
-    transmute(
-      source = "accounting",
-      source_record_id = accounting_source_id,
-      truth_firm_id
-    )
-)
-
-value_truth <- bind_rows(
-  firms_with_identity %>%
-    transmute(
-      source = "register",
-      source_record_id = register_id,
-      truth_firm_id,
-      reference_period = as.character(
-        register_reference_year
-      ),
-      variable = "employees",
-      truth_value = as.numeric(
-        employees_register_complete
-      )
-    ),
-
-  firms_with_identity %>%
-    transmute(
-      source = "register",
-      source_record_id = register_id,
-      truth_firm_id,
-      reference_period = as.character(
-        revenue_reference_year
-      ),
-      variable = "revenue_last_year",
-      truth_value = as.numeric(
-        revenue_last_year_complete
-      )
-    ),
-
-  employment_with_identity %>%
-    transmute(
-      source = "employment",
-      source_record_id = employment_source_id,
-      truth_firm_id,
-      reference_period = format(
-        month,
-        "%Y-%m"
-      ),
-      variable = "employees",
-      truth_value = as.numeric(
-        employees_source_complete
-      )
-    ),
-
-  turnover_with_identity %>%
-    transmute(
-      source = "turnover",
-      source_record_id = turnover_source_id,
-      truth_firm_id,
-      reference_period = format(
-        month,
-        "%Y-%m"
-      ),
-      variable = "turnover",
-      truth_value = as.numeric(
-        turnover_source_complete
-      )
-    ),
-
-  accounting_with_identity %>%
-    transmute(
-      source = "accounting",
-      source_record_id = accounting_source_id,
-      truth_firm_id,
-      reference_period = as.character(
-        reference_year
-      ),
-      variable = "operating_revenue",
-      truth_value = as.numeric(
-        operating_revenue_complete
-      )
-    ),
-
-  accounting_with_identity %>%
-    transmute(
-      source = "accounting",
-      source_record_id = accounting_source_id,
-      truth_firm_id,
-      reference_period = as.character(
-        reference_year
-      ),
-      variable = "purchases_goods_services",
-      truth_value = as.numeric(
-        purchases_goods_services_complete
-      )
-    ),
-
-  accounting_with_identity %>%
-    transmute(
-      source = "accounting",
-      source_record_id = accounting_source_id,
-      truth_firm_id,
-      reference_period = as.character(
-        reference_year
-      ),
-      variable = "personnel_expense",
-      truth_value = as.numeric(
-        personnel_expense_complete
-      )
-    )
-)
+value_truth <-
+  truth_outputs$value
 
 # ----------------------------------------------------------------------
 # 14. Write operational and hidden datasets
