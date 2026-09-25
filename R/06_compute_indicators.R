@@ -29,6 +29,7 @@ library(dplyr)
 library(readr)
 library(lubridate)
 
+source("R/enterprise_year.R")
 
 dir.create(
   "data/processed",
@@ -67,193 +68,28 @@ message(
 # 2. Validate monthly panel structure
 # ----------------------------------------------------------------------
 
-duplicate_keys <- panel %>%
-  count(
-    canonical_firm_id,
-    month
-  ) %>%
-  filter(
-    n > 1L
-  )
-
-if (
-  nrow(duplicate_keys) > 0L
-) {
-  stop(
-    "Duplicate canonical enterprise-month keys detected: ",
-    nrow(duplicate_keys)
-  )
-}
-
-monthly_structure <- panel %>%
-  count(
-    canonical_firm_id,
-    year,
-    name = "monthly_observations"
-  )
-
-if (
-  any(
-    monthly_structure$monthly_observations !=
-      required_months
-  )
-) {
-  stop(
-    "Expected exactly 12 structural monthly observations ",
-    "per enterprise-year."
-  )
-}
+validate_monthly_panel_structure(
+  panel,
+  required_months
+)
 
 # ----------------------------------------------------------------------
 # 3. Build enterprise-year analytical measures
 # ----------------------------------------------------------------------
 
-enterprise_year <- panel %>%
-  group_by(
-    canonical_firm_id,
-    year
-  ) %>%
-  summarise(
-    nace_code =
-      first(nace_code),
-
-    region_code =
-      first(region_code),
-
-    monthly_observations =
-      n(),
-
-    usable_turnover_months =
-      sum(
-        !is.na(turnover_monthly)
-      ),
-
-    usable_employment_months =
-      sum(
-        !is.na(employees_monthly)
-      ),
-
-    turnover_imputed_months =
-      sum(
-        turnover_status == "imputed",
-        na.rm = TRUE
-      ),
-
-    employment_imputed_months =
-      sum(
-        employment_status == "imputed",
-        na.rm = TRUE
-      ),
-
-    annual_turnover = if (
-      sum(!is.na(turnover_monthly)) ==
-        required_months
-    ) {
-      sum(
-        turnover_monthly,
-        na.rm = TRUE
-      )
-    } else {
-      NA_real_
-    },
-
-    annual_average_employment = if (
-      sum(!is.na(employees_monthly)) ==
-        required_months
-    ) {
-      mean(
-        employees_monthly,
-        na.rm = TRUE
-      )
-    } else {
-      NA_real_
-    },
-
-    .groups = "drop"
-  ) %>%
-  mutate(
-    complete_turnover =
-      usable_turnover_months ==
-        required_months,
-
-    complete_employment =
-      usable_employment_months ==
-        required_months,
-
-    complete_annual_measures =
-      complete_turnover &
-        complete_employment,
-
-    turnover_per_employee =
-      case_when(
-        !is.na(annual_turnover) &
-          !is.na(
-            annual_average_employment
-          ) &
-          annual_average_employment > 0 ~
-          annual_turnover /
-            annual_average_employment,
-
-        TRUE ~
-          NA_real_
-      )
-  ) %>%
-  arrange(
-    canonical_firm_id,
-    year
+enterprise_year <-
+  build_enterprise_year(
+    panel,
+    required_months
   )
 
 # ----------------------------------------------------------------------
 # 4. Validate enterprise-year measures
 # ----------------------------------------------------------------------
 
-if (
-  anyDuplicated(
-    enterprise_year[
-      c(
-        "canonical_firm_id",
-        "year"
-      )
-    ]
-  )
-) {
-  stop(
-    "Duplicate canonical enterprise-year keys detected."
-  )
-}
-
-if (
-  any(
-    enterprise_year$annual_turnover <= 0,
-    na.rm = TRUE
-  )
-) {
-  stop(
-    "Non-positive annual turnover detected."
-  )
-}
-
-if (
-  any(
-    enterprise_year$annual_average_employment <= 0,
-    na.rm = TRUE
-  )
-) {
-  stop(
-    "Non-positive annual average employment detected."
-  )
-}
-
-if (
-  any(
-    enterprise_year$turnover_per_employee <= 0,
-    na.rm = TRUE
-  )
-) {
-  stop(
-    "Non-positive turnover-per-employee values detected."
-  )
-}
+validate_enterprise_year(
+  enterprise_year
+)
 
 message(
   "Enterprise-year observations: ",
@@ -263,22 +99,9 @@ message(
 message("Annual coverage by year:")
 
 print(
-  enterprise_year %>%
-    group_by(year) %>%
-    summarise(
-      enterprises = n(),
-
-      complete_turnover =
-        sum(complete_turnover),
-
-      complete_employment =
-        sum(complete_employment),
-
-      complete_both =
-        sum(complete_annual_measures),
-
-      .groups = "drop"
-    )
+  summarise_enterprise_year_coverage(
+    enterprise_year
+  )
 )
 
 # ----------------------------------------------------------------------
