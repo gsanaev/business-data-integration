@@ -1482,3 +1482,393 @@ build_synthetic_truth_outputs <- function(
     value = value_truth
   )
 }
+
+additional_missing_probability <- function(
+  target_probability,
+  baseline_probability
+) {
+  if (
+    target_probability <=
+      baseline_probability
+  ) {
+    return(0)
+  }
+
+  if (
+    baseline_probability >= 1
+  ) {
+    stop(
+      "Baseline missing-ID probability must be below 1."
+    )
+  }
+
+  (
+    target_probability -
+      baseline_probability
+  ) /
+    (
+      1 -
+        baseline_probability
+    )
+}
+
+
+extract_scenario_identity_table <- function(
+  source_data
+) {
+  source_data %>%
+    distinct(
+      truth_firm_id,
+      business_id,
+      enterprise_name,
+      street,
+      postal_code,
+      city,
+      legal_form,
+      nace_code
+    )
+}
+
+
+replace_scenario_identity_table <- function(
+  source_data,
+  identity_table
+) {
+  identity_columns <- c(
+    "business_id",
+    "enterprise_name",
+    "street",
+    "postal_code",
+    "city",
+    "legal_form",
+    "nace_code"
+  )
+
+  source_data %>%
+    select(
+      -all_of(
+        identity_columns
+      )
+    ) %>%
+    left_join(
+      identity_table,
+      by = "truth_firm_id"
+    )
+}
+
+
+apply_identity_scenario_to_table <- function(
+  identity_table,
+  scenario,
+  baseline_scenario,
+  source_label
+) {
+  required_columns <- c(
+    "truth_firm_id",
+    "business_id",
+    "enterprise_name",
+    "street",
+    "postal_code",
+    "city",
+    "legal_form",
+    "nace_code"
+  )
+
+  missing_columns <-
+    setdiff(
+      required_columns,
+      names(identity_table)
+    )
+
+  if (
+    length(missing_columns) > 0L
+  ) {
+    stop(
+      "Identity table is missing required columns: ",
+      paste(
+        missing_columns,
+        collapse = ", "
+      )
+    )
+  }
+
+  out <-
+    identity_table
+
+  n <-
+    nrow(out)
+
+  additional_missing <-
+    additional_missing_probability(
+      scenario$missing_business_id,
+      baseline_scenario$missing_business_id
+    )
+
+  missing_flag <-
+    draw_scenario_flag(
+      n,
+      additional_missing
+    ) &
+      !is.na(
+        out$business_id
+      )
+
+  out$business_id[
+    missing_flag
+  ] <- NA_character_
+
+  available_share <-
+    1 -
+      scenario$missing_business_id
+
+  invalid_probability <-
+    if (
+      scenario$invalid_or_unknown_business_id == 0
+    ) {
+      0
+    } else {
+      scenario$invalid_or_unknown_business_id /
+        available_share
+    }
+
+  if (
+    invalid_probability > 1
+  ) {
+    stop(
+      "Invalid-ID probability is incompatible with missing-ID probability."
+    )
+  }
+
+  invalid_flag <-
+    draw_scenario_flag(
+      n,
+      invalid_probability
+    ) &
+      !is.na(
+        out$business_id
+      )
+
+  out$business_id <-
+    make_unknown_business_id(
+      out$business_id,
+      invalid_flag,
+      source_label
+    )
+
+  name_typo_flag <-
+    draw_scenario_flag(
+      n,
+      scenario$additional_name_typo
+    )
+
+  out$enterprise_name <-
+    introduce_name_typo(
+      out$enterprise_name,
+      name_typo_flag
+    )
+
+  name_degradation_flag <-
+    draw_scenario_flag(
+      n,
+      scenario$substantial_name_degradation
+    )
+
+  out$enterprise_name <-
+    degrade_company_name(
+      out$enterprise_name,
+      name_degradation_flag
+    )
+
+  street_flag <-
+    draw_scenario_flag(
+      n,
+      scenario$strong_street_discrepancy
+    )
+
+  out$street <-
+    create_strong_street_discrepancy(
+      out$street,
+      street_flag
+    )
+
+  postal_code_flag <-
+    draw_scenario_flag(
+      n,
+      scenario$postal_code_missing_or_error
+    )
+
+  out$postal_code <-
+    corrupt_postal_code(
+      out$postal_code,
+      postal_code_flag
+    )
+
+  nace_flag <-
+    draw_scenario_flag(
+      n,
+      scenario$nace_disagreement
+    )
+
+  out$nace_code <-
+    create_nace_disagreement(
+      out$nace_code,
+      nace_flag
+    )
+
+  legal_form_flag <-
+    draw_scenario_flag(
+      n,
+      scenario$legal_form_disagreement
+    )
+
+  out$legal_form <-
+    create_legal_form_disagreement(
+      out$legal_form,
+      legal_form_flag
+    )
+
+  corruption_log <-
+    tibble(
+      source =
+        source_label,
+
+      truth_firm_id =
+        out$truth_firm_id,
+
+      missing_business_id =
+        is.na(
+          out$business_id
+        ),
+
+      invalid_or_unknown_business_id =
+        invalid_flag,
+
+      additional_name_typo =
+        name_typo_flag,
+
+      substantial_name_degradation =
+        name_degradation_flag,
+
+      strong_street_discrepancy =
+        street_flag,
+
+      postal_code_missing_or_error =
+        postal_code_flag,
+
+      nace_disagreement =
+        nace_flag,
+
+      legal_form_disagreement =
+        legal_form_flag
+    )
+
+  list(
+    identity = out,
+    corruption_log =
+      corruption_log
+  )
+}
+
+
+apply_identity_scenario_to_sources <- function(
+  attached_sources,
+  scenario_name,
+  scenario,
+  baseline_scenario
+) {
+  employment_identity <-
+    extract_scenario_identity_table(
+      attached_sources$employment
+    )
+
+  turnover_identity <-
+    extract_scenario_identity_table(
+      attached_sources$turnover
+    )
+
+  accounting_identity <-
+    extract_scenario_identity_table(
+      attached_sources$accounting
+    )
+
+  employment_result <-
+    apply_identity_scenario_to_table(
+      employment_identity,
+      scenario,
+      baseline_scenario,
+      "employment"
+    )
+
+  turnover_result <-
+    apply_identity_scenario_to_table(
+      turnover_identity,
+      scenario,
+      baseline_scenario,
+      "turnover"
+    )
+
+  accounting_result <-
+    apply_identity_scenario_to_table(
+      accounting_identity,
+      scenario,
+      baseline_scenario,
+      "accounting"
+    )
+
+  corruption_log <-
+    bind_rows(
+      employment_result$corruption_log,
+      turnover_result$corruption_log,
+      accounting_result$corruption_log
+    ) %>%
+    mutate(
+      scenario =
+        scenario_name,
+      .before =
+        source
+    )
+
+  if (
+    identical(
+      scenario_name,
+      "baseline"
+    )
+  ) {
+    return(
+      list(
+        sources =
+          attached_sources,
+        corruption_log =
+          corruption_log
+      )
+    )
+  }
+
+  scenario_sources <-
+    attached_sources
+
+  scenario_sources$employment <-
+    replace_scenario_identity_table(
+      attached_sources$employment,
+      employment_result$identity
+    )
+
+  scenario_sources$turnover <-
+    replace_scenario_identity_table(
+      attached_sources$turnover,
+      turnover_result$identity
+    )
+
+  scenario_sources$accounting <-
+    replace_scenario_identity_table(
+      attached_sources$accounting,
+      accounting_result$identity
+    )
+
+  list(
+    sources =
+      scenario_sources,
+    corruption_log =
+      corruption_log
+  )
+}
