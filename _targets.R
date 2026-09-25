@@ -27,6 +27,7 @@ tar_source(
     "R/coherence.R",
     "R/enterprise_year.R",
     "R/indicators.R",
+    "R/evaluation.R",
     "R/reporting.R"
   ),
   change_directory = FALSE
@@ -194,6 +195,31 @@ list(
   ),
 
   tar_target(
+    enterprise_split,
+    {
+      split_seed <- 202604L
+
+      canonical_ids <-
+        synthetic_baseline$truth$enterprise$truth_firm_id
+
+      split <-
+        create_enterprise_split(
+          canonical_ids,
+          development_share = 0.70,
+          seed = split_seed
+        )
+
+      validate_enterprise_split(
+        split,
+        canonical_ids,
+        development_share = 0.70
+      )
+
+      split
+    }
+  ),
+
+  tar_target(
     identity_scenarios,
     {
       scenarios <-
@@ -267,7 +293,11 @@ list(
       identity_scenarios$baseline$corruption_log,
       identity_scenarios$moderate$corruption_log,
       identity_scenarios$difficult$corruption_log
-    )
+    ) %>%
+      left_join(
+        enterprise_split,
+        by = "truth_firm_id"
+      )
   ),
 
   tar_target(
