@@ -147,12 +147,23 @@ link_source_entities <- function(
       )
     )
 
+  unresolved_source_ids <-
+    deterministic_base %>%
+    filter(
+      linkage_status !=
+        "matched_deterministic"
+    ) %>%
+    pull(
+      .data[[source_id_column]]
+    )
+
   similarity <-
     rank_similarity_candidates(
       source_entities =
         source_entities %>%
         filter(
-          is.na(business_id)
+          .data[[source_id_column]] %in%
+            unresolved_source_ids
         ),
 
       source_id_column =
@@ -185,8 +196,11 @@ link_source_entities <- function(
     ) %>%
     mutate(
       register_id = case_when(
-        linkage_status ==
-          "unmatched_missing_identifier" &
+        linkage_status %in%
+          c(
+            "unmatched_missing_identifier",
+            "unmatched_identifier_not_found"
+          ) &
           similarity_status ==
             "matched_similarity" ~
           candidate_register_id,
@@ -196,8 +210,11 @@ link_source_entities <- function(
       ),
 
       canonical_firm_id = case_when(
-        linkage_status ==
-          "unmatched_missing_identifier" &
+        linkage_status %in%
+          c(
+            "unmatched_missing_identifier",
+            "unmatched_identifier_not_found"
+          ) &
           similarity_status ==
             "matched_similarity" ~
           candidate_canonical_firm_id,
@@ -207,8 +224,11 @@ link_source_entities <- function(
       ),
 
       linkage_status = case_when(
-        linkage_status ==
-          "unmatched_missing_identifier" &
+        linkage_status %in%
+          c(
+            "unmatched_missing_identifier",
+            "unmatched_identifier_not_found"
+          ) &
           !is.na(similarity_status) ~
           similarity_status,
 
