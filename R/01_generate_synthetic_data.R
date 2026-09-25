@@ -32,6 +32,13 @@ library(readr)
 
 source("R/helpers/synthetic_identity.R")
 source("R/synthetic.R")
+source("R/config.R")
+
+project_config <-
+  load_project_config()
+
+baseline_scenario <-
+  project_config$scenarios$scenarios$baseline
 
 set.seed(2025)
 
@@ -147,7 +154,8 @@ identity_truth <-
 primary_identities <-
   generate_primary_source_identities(
     identity_truth,
-    n_firms
+    n_firms,
+    baseline_scenario$missing_business_id
   )
 
 register_identity <-
@@ -171,7 +179,8 @@ accounting <-
 accounting_identity <-
   generate_accounting_identity(
     identity_truth,
-    n_firms
+    n_firms,
+    baseline_scenario$missing_business_id
   )
 
 # ----------------------------------------------------------------------

@@ -72,6 +72,9 @@ list(
 
       n_firms <- 1500L
 
+      baseline_scenario <-
+        project_config$scenarios$scenarios$baseline
+
       firm_truth <-
         generate_latent_enterprises(
           regions,
@@ -130,7 +133,8 @@ list(
       primary_identities <-
         generate_primary_source_identities(
           identity_truth,
-          n_firms
+          n_firms,
+          baseline_scenario$missing_business_id
         )
 
       register_identity <-
@@ -150,7 +154,8 @@ list(
       accounting_identity <-
         generate_accounting_identity(
           identity_truth,
-          n_firms
+          n_firms,
+          baseline_scenario$missing_business_id
         )
 
       attached_sources <-

@@ -855,7 +855,8 @@ create_enterprise_identity_truth <- function(
 
 generate_primary_source_identities <- function(
   identity_truth,
-  n_firms
+  n_firms,
+  missing_business_id_probability
 ) {
   register_identity <-
     identity_truth %>%
@@ -906,7 +907,7 @@ generate_primary_source_identities <- function(
       business_id =
         drop_identifier(
           business_id,
-          probability = 0.10
+          probability = missing_business_id_probability
         ),
 
       enterprise_name =
@@ -945,7 +946,7 @@ generate_primary_source_identities <- function(
       business_id =
         drop_identifier(
           business_id,
-          probability = 0.10
+          probability = missing_business_id_probability
         ),
 
       enterprise_name =
@@ -1119,7 +1120,8 @@ generate_accounting_source <- function(
 
 generate_accounting_identity <- function(
   identity_truth,
-  n_firms
+  n_firms,
+  missing_business_id_probability
 ) {
   identity_truth %>%
     transmute(
@@ -1136,7 +1138,7 @@ generate_accounting_identity <- function(
       business_id =
         drop_identifier(
           business_id,
-          probability = 0.10
+          probability = missing_business_id_probability
         ),
 
       enterprise_name =
