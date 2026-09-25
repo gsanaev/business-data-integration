@@ -127,34 +127,7 @@ base_theme <- theme_minimal(
     panel.grid.minor = element_blank()
   )
 
-format_millions <- function(x) {
-  paste0(
-    format(
-      round(
-        x / 1e6,
-        1
-      ),
-      trim = TRUE,
-      scientific = FALSE
-    ),
-    " M"
-  )
-}
-
-format_thousands <- function(x) {
-  paste0(
-    format(
-      round(
-        x / 1e3,
-        0
-      ),
-      big.mark = ",",
-      trim = TRUE,
-      scientific = FALSE
-    ),
-    "k"
-  )
-}
+source("R/reporting.R")
 
 # ----------------------------------------------------------------------
 # 4. Monthly total turnover
