@@ -109,3 +109,125 @@ rank_similarity_candidates <- function(
     decisions = decisions
   )
 }
+
+link_source_entities <- function(
+  source_entities,
+  source_id_column,
+  register_lookup,
+  register_entities,
+  similarity_weights,
+  score_threshold,
+  margin_threshold
+) {
+  deterministic_base <-
+    source_entities %>%
+    left_join(
+      register_lookup,
+      by = "business_id"
+    ) %>%
+    mutate(
+      linkage_status = case_when(
+        is.na(business_id) ~
+          "unmatched_missing_identifier",
+
+        !is.na(canonical_firm_id) ~
+          "matched_deterministic",
+
+        TRUE ~
+          "unmatched_identifier_not_found"
+      ),
+
+      linkage_method = case_when(
+        linkage_status ==
+          "matched_deterministic" ~
+          "business_id_exact",
+
+        TRUE ~
+          NA_character_
+      )
+    )
+
+  similarity <-
+    rank_similarity_candidates(
+      source_entities =
+        source_entities %>%
+        filter(
+          is.na(business_id)
+        ),
+
+      source_id_column =
+        source_id_column,
+
+      register_entities =
+        register_entities,
+
+      similarity_weights =
+        similarity_weights,
+
+      score_threshold =
+        score_threshold,
+
+      margin_threshold =
+        margin_threshold
+    )
+
+  join_by <-
+    setNames(
+      "source_record_id",
+      source_id_column
+    )
+
+  links <-
+    deterministic_base %>%
+    left_join(
+      similarity$decisions,
+      by = join_by
+    ) %>%
+    mutate(
+      register_id = case_when(
+        linkage_status ==
+          "unmatched_missing_identifier" &
+          similarity_status ==
+            "matched_similarity" ~
+          candidate_register_id,
+
+        TRUE ~
+          register_id
+      ),
+
+      canonical_firm_id = case_when(
+        linkage_status ==
+          "unmatched_missing_identifier" &
+          similarity_status ==
+            "matched_similarity" ~
+          candidate_canonical_firm_id,
+
+        TRUE ~
+          canonical_firm_id
+      ),
+
+      linkage_status = case_when(
+        linkage_status ==
+          "unmatched_missing_identifier" &
+          !is.na(similarity_status) ~
+          similarity_status,
+
+        TRUE ~
+          linkage_status
+      ),
+
+      linkage_method = case_when(
+        linkage_status ==
+          "matched_similarity" ~
+          "weighted_edit_similarity",
+
+        TRUE ~
+          linkage_method
+      )
+    )
+
+  list(
+    links = links,
+    similarity = similarity
+  )
+}

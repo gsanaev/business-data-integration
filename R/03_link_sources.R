@@ -169,334 +169,109 @@ source("R/linkage_similarity.R")
 source("R/linkage_decision.R")
 
 # ----------------------------------------------------------------------
-# 7. Deterministic employment linkage
+# 7. Link employment enterprises
 # ----------------------------------------------------------------------
 
-employment_base <- employment_entities %>%
-  left_join(
-    register_lookup,
-    by = "business_id"
-  ) %>%
-  mutate(
-    linkage_status = case_when(
-      is.na(business_id) ~
-        "unmatched_missing_identifier",
+employment_linkage <-
+  link_source_entities(
+    source_entities =
+      employment_entities,
 
-      !is.na(canonical_firm_id) ~
-        "matched_deterministic",
+    source_id_column =
+      "employment_source_id",
 
-      TRUE ~
-        "unmatched_identifier_not_found"
-    ),
+    register_lookup =
+      register_lookup,
 
-    linkage_method = case_when(
-      linkage_status ==
-        "matched_deterministic" ~
-        "business_id_exact",
+    register_entities =
+      register_entities,
 
-      TRUE ~
-        NA_character_
-    )
+    similarity_weights =
+      similarity_weights,
+
+    score_threshold =
+      similarity_score_threshold,
+
+    margin_threshold =
+      similarity_margin_threshold
   )
 
+employment_links <-
+  employment_linkage$links
+
+employment_similarity <-
+  employment_linkage$similarity
+
 # ----------------------------------------------------------------------
-# 8. Similarity linkage for unresolved employment entities
+# 8. Link turnover enterprises
 # ----------------------------------------------------------------------
 
-employment_similarity <- rank_similarity_candidates(
-  source_entities =
-    employment_entities %>%
-    filter(
-      is.na(business_id)
-    ),
+turnover_linkage <-
+  link_source_entities(
+    source_entities =
+      turnover_entities,
 
-  source_id_column =
-    "employment_source_id",
+    source_id_column =
+      "turnover_source_id",
 
-  register_entities =
-    register_entities,
+    register_lookup =
+      register_lookup,
 
-  similarity_weights =
-    similarity_weights,
+    register_entities =
+      register_entities,
 
-  score_threshold =
-    similarity_score_threshold,
+    similarity_weights =
+      similarity_weights,
 
-  margin_threshold =
-    similarity_margin_threshold
-)
+    score_threshold =
+      similarity_score_threshold,
 
-employment_links <- employment_base %>%
-  left_join(
-    employment_similarity$decisions,
-    by = c(
-      "employment_source_id" =
-        "source_record_id"
-    )
-  ) %>%
-  mutate(
-    register_id = case_when(
-      linkage_status ==
-        "unmatched_missing_identifier" &
-        similarity_status ==
-          "matched_similarity" ~
-        candidate_register_id,
-
-      TRUE ~
-        register_id
-    ),
-
-    canonical_firm_id = case_when(
-      linkage_status ==
-        "unmatched_missing_identifier" &
-        similarity_status ==
-          "matched_similarity" ~
-        candidate_canonical_firm_id,
-
-      TRUE ~
-        canonical_firm_id
-    ),
-
-    linkage_status = case_when(
-      linkage_status ==
-        "unmatched_missing_identifier" &
-        !is.na(similarity_status) ~
-        similarity_status,
-
-      TRUE ~
-        linkage_status
-    ),
-
-    linkage_method = case_when(
-      linkage_status ==
-        "matched_similarity" ~
-        "weighted_edit_similarity",
-
-      TRUE ~
-        linkage_method
-    )
+    margin_threshold =
+      similarity_margin_threshold
   )
 
+turnover_links <-
+  turnover_linkage$links
+
+turnover_similarity <-
+  turnover_linkage$similarity
+
 # ----------------------------------------------------------------------
-# 9. Deterministic turnover linkage
+# 9. Link accounting enterprises
 # ----------------------------------------------------------------------
 
-turnover_base <- turnover_entities %>%
-  left_join(
-    register_lookup,
-    by = "business_id"
-  ) %>%
-  mutate(
-    linkage_status = case_when(
-      is.na(business_id) ~
-        "unmatched_missing_identifier",
+accounting_linkage <-
+  link_source_entities(
+    source_entities =
+      accounting_entities,
 
-      !is.na(canonical_firm_id) ~
-        "matched_deterministic",
+    source_id_column =
+      "accounting_source_id",
 
-      TRUE ~
-        "unmatched_identifier_not_found"
-    ),
+    register_lookup =
+      register_lookup,
 
-    linkage_method = case_when(
-      linkage_status ==
-        "matched_deterministic" ~
-        "business_id_exact",
+    register_entities =
+      register_entities,
 
-      TRUE ~
-        NA_character_
-    )
+    similarity_weights =
+      similarity_weights,
+
+    score_threshold =
+      similarity_score_threshold,
+
+    margin_threshold =
+      similarity_margin_threshold
   )
 
-# ----------------------------------------------------------------------
-# 10. Similarity linkage for unresolved turnover entities
-# ----------------------------------------------------------------------
+accounting_links <-
+  accounting_linkage$links
 
-turnover_similarity <- rank_similarity_candidates(
-  source_entities =
-    turnover_entities %>%
-    filter(
-      is.na(business_id)
-    ),
-
-  source_id_column =
-    "turnover_source_id",
-
-  register_entities =
-    register_entities,
-
-  similarity_weights =
-    similarity_weights,
-
-  score_threshold =
-    similarity_score_threshold,
-
-  margin_threshold =
-    similarity_margin_threshold
-)
-
-turnover_links <- turnover_base %>%
-  left_join(
-    turnover_similarity$decisions,
-    by = c(
-      "turnover_source_id" =
-        "source_record_id"
-    )
-  ) %>%
-  mutate(
-    register_id = case_when(
-      linkage_status ==
-        "unmatched_missing_identifier" &
-        similarity_status ==
-          "matched_similarity" ~
-        candidate_register_id,
-
-      TRUE ~
-        register_id
-    ),
-
-    canonical_firm_id = case_when(
-      linkage_status ==
-        "unmatched_missing_identifier" &
-        similarity_status ==
-          "matched_similarity" ~
-        candidate_canonical_firm_id,
-
-      TRUE ~
-        canonical_firm_id
-    ),
-
-    linkage_status = case_when(
-      linkage_status ==
-        "unmatched_missing_identifier" &
-        !is.na(similarity_status) ~
-        similarity_status,
-
-      TRUE ~
-        linkage_status
-    ),
-
-    linkage_method = case_when(
-      linkage_status ==
-        "matched_similarity" ~
-        "weighted_edit_similarity",
-
-      TRUE ~
-        linkage_method
-    )
-  )
+accounting_similarity <-
+  accounting_linkage$similarity
 
 # ----------------------------------------------------------------------
-# 11. Deterministic accounting linkage
-# ----------------------------------------------------------------------
-
-accounting_base <- accounting_entities %>%
-  left_join(
-    register_lookup,
-    by = "business_id"
-  ) %>%
-  mutate(
-    linkage_status = case_when(
-      is.na(business_id) ~
-        "unmatched_missing_identifier",
-
-      !is.na(canonical_firm_id) ~
-        "matched_deterministic",
-
-      TRUE ~
-        "unmatched_identifier_not_found"
-    ),
-
-    linkage_method = case_when(
-      linkage_status ==
-        "matched_deterministic" ~
-        "business_id_exact",
-
-      TRUE ~
-        NA_character_
-    )
-  )
-
-# ----------------------------------------------------------------------
-# 12. Similarity linkage for unresolved accounting entities
-# ----------------------------------------------------------------------
-
-accounting_similarity <- rank_similarity_candidates(
-  source_entities =
-    accounting_entities %>%
-    filter(
-      is.na(business_id)
-    ),
-
-  source_id_column =
-    "accounting_source_id",
-
-  register_entities =
-    register_entities,
-
-  similarity_weights =
-    similarity_weights,
-
-  score_threshold =
-    similarity_score_threshold,
-
-  margin_threshold =
-    similarity_margin_threshold
-)
-
-accounting_links <- accounting_base %>%
-  left_join(
-    accounting_similarity$decisions,
-    by = c(
-      "accounting_source_id" =
-        "source_record_id"
-    )
-  ) %>%
-  mutate(
-    register_id = case_when(
-      linkage_status ==
-        "unmatched_missing_identifier" &
-        similarity_status ==
-          "matched_similarity" ~
-        candidate_register_id,
-
-      TRUE ~
-        register_id
-    ),
-
-    canonical_firm_id = case_when(
-      linkage_status ==
-        "unmatched_missing_identifier" &
-        similarity_status ==
-          "matched_similarity" ~
-        candidate_canonical_firm_id,
-
-      TRUE ~
-        canonical_firm_id
-    ),
-
-    linkage_status = case_when(
-      linkage_status ==
-        "unmatched_missing_identifier" &
-        !is.na(similarity_status) ~
-        similarity_status,
-
-      TRUE ~
-        linkage_status
-    ),
-
-    linkage_method = case_when(
-      linkage_status ==
-        "matched_similarity" ~
-        "weighted_edit_similarity",
-
-      TRUE ~
-        linkage_method
-    )
-  )
-
-# ----------------------------------------------------------------------
-# 13. Prepare accounting linkage crosswalk
+# 10. Prepare accounting linkage crosswalk
 # ----------------------------------------------------------------------
 
 accounting_crosswalk <- accounting_links %>%
@@ -516,7 +291,7 @@ accounting_crosswalk <- accounting_links %>%
   )
 
 # ----------------------------------------------------------------------
-# 14. Build unified linkage crosswalk
+# 11. Build unified linkage crosswalk
 # ----------------------------------------------------------------------
 
 register_links <- register_entities %>%
@@ -578,7 +353,7 @@ linkage_crosswalk <- bind_rows(
 )
 
 # ----------------------------------------------------------------------
-# 15. Preserve candidate-level evidence
+# 12. Preserve candidate-level evidence
 # ----------------------------------------------------------------------
 
 employment_candidates <-
@@ -610,7 +385,7 @@ linkage_candidates <- bind_rows(
   )
 
 # ----------------------------------------------------------------------
-# 16. Report linkage results
+# 13. Report linkage results
 # ----------------------------------------------------------------------
 
 message("Employment linkage:")
@@ -632,7 +407,7 @@ print(
 )
 
 # ----------------------------------------------------------------------
-# 17. Write linkage outputs
+# 14. Write linkage outputs
 # ----------------------------------------------------------------------
 
 write_csv(
