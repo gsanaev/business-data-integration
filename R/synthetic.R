@@ -697,3 +697,466 @@ generate_monthly_turnover <- function(
       turnover
     )
 }
+
+create_enterprise_identity_truth <- function(
+  firm_truth,
+  regions
+) {
+  location_lookup <- tibble(
+    region_code =
+      regions$region_code,
+
+    city = c(
+      "Frankfurt am Main",
+      "Wiesbaden",
+      "Darmstadt",
+      "Mainz",
+      "Kassel",
+      "Mannheim",
+      "Heidelberg",
+      "Karlsruhe",
+      "Fulda",
+      "Giessen"
+    ),
+
+    postal_code = c(
+      "60311",
+      "65183",
+      "64283",
+      "55116",
+      "34117",
+      "68159",
+      "69117",
+      "76133",
+      "36037",
+      "35390"
+    )
+  )
+
+  name_prefixes <- c(
+    "Nordstern",
+    "Rheinblick",
+    "Mainwerk",
+    "Hansa",
+    "Bergtal",
+    "Westtor",
+    "Suedpark",
+    "Adler",
+    "Linden",
+    "Taunus",
+    "Neckar",
+    "Waldhof",
+    "Mittelrhein",
+    "Eichen",
+    "Silber",
+    "Kronen",
+    "Markt",
+    "Feldberg",
+    "Rosen",
+    "Central"
+  )
+
+  name_activities <- c(
+    "Handel",
+    "Logistik",
+    "Industrie",
+    "Technik",
+    "Produktion",
+    "Vertrieb",
+    "Transport",
+    "Lebensmittel",
+    "Bau & Service",
+    "Hotel",
+    "Gastronomie",
+    "Mobilitaet",
+    "Dienstleistungen",
+    "Versorgung",
+    "Werk"
+  )
+
+  street_names <- c(
+    "Hauptstrasse",
+    "Bahnhofstrasse",
+    "Industriestrasse",
+    "Marktstrasse",
+    "Rheinstrasse",
+    "Goethestrasse",
+    "Schillerstrasse",
+    "Gartenweg",
+    "Feldweg",
+    "Lindenweg"
+  )
+
+  firm_truth %>%
+    select(
+      truth_firm_id,
+      region_code,
+      nace_code,
+      legal_form,
+      foundation_year
+    ) %>%
+    left_join(
+      location_lookup,
+      by = "region_code"
+    ) %>%
+    mutate(
+      business_id =
+        sprintf(
+          "B%07d",
+          seq_len(n())
+        ),
+
+      legal_form_label =
+        case_when(
+          legal_form ==
+            "Einzelunternehmen" ~
+            "",
+
+          TRUE ~
+            legal_form
+        ),
+
+      enterprise_name =
+        trimws(
+          paste(
+            sample(
+              name_prefixes,
+              n(),
+              replace = TRUE
+            ),
+            sample(
+              name_activities,
+              n(),
+              replace = TRUE
+            ),
+            legal_form_label
+          )
+        ),
+
+      street =
+        paste(
+          sample(
+            street_names,
+            n(),
+            replace = TRUE
+          ),
+          sample(
+            1:180,
+            n(),
+            replace = TRUE
+          )
+        )
+    ) %>%
+    select(
+      -legal_form_label
+    )
+}
+
+
+generate_primary_source_identities <- function(
+  identity_truth,
+  n_firms
+) {
+  register_identity <-
+    identity_truth %>%
+    transmute(
+      truth_firm_id,
+
+      register_id =
+        sample(
+          make_source_id(
+            "REG",
+            n_firms
+          )
+        ),
+
+      business_id,
+
+      enterprise_name =
+        perturb_company_name(
+          enterprise_name
+        ),
+
+      street =
+        perturb_street(
+          street
+        ),
+
+      postal_code,
+
+      city =
+        perturb_city(
+          city
+        )
+    )
+
+  employment_identity <-
+    identity_truth %>%
+    transmute(
+      truth_firm_id,
+
+      employment_source_id =
+        sample(
+          make_source_id(
+            "EMP",
+            n_firms
+          )
+        ),
+
+      business_id =
+        drop_identifier(
+          business_id,
+          probability = 0.10
+        ),
+
+      enterprise_name =
+        perturb_company_name(
+          enterprise_name
+        ),
+
+      street =
+        perturb_street(
+          street
+        ),
+
+      postal_code,
+
+      city =
+        perturb_city(
+          city
+        ),
+
+      legal_form
+    )
+
+  turnover_identity <-
+    identity_truth %>%
+    transmute(
+      truth_firm_id,
+
+      turnover_source_id =
+        sample(
+          make_source_id(
+            "TUR",
+            n_firms
+          )
+        ),
+
+      business_id =
+        drop_identifier(
+          business_id,
+          probability = 0.10
+        ),
+
+      enterprise_name =
+        perturb_company_name(
+          enterprise_name
+        ),
+
+      street =
+        perturb_street(
+          street
+        ),
+
+      postal_code,
+
+      city =
+        perturb_city(
+          city
+        ),
+
+      legal_form
+    )
+
+  list(
+    register = register_identity,
+    employment = employment_identity,
+    turnover = turnover_identity
+  )
+}
+
+
+generate_accounting_source <- function(
+  annual_truth
+) {
+  accounting_params <- tibble(
+    nace_code = c(
+      "G47",
+      "C10",
+      "C29",
+      "H49",
+      "I55",
+      "I56"
+    ),
+
+    accounting_revenue_factor = c(
+      1.01,
+      0.99,
+      1.02,
+      1.00,
+      0.98,
+      1.01
+    ),
+
+    purchases_share_center = c(
+      0.72,
+      0.58,
+      0.62,
+      0.45,
+      0.40,
+      0.48
+    ),
+
+    personnel_cost_per_employee = c(
+      38000,
+      45000,
+      55000,
+      42000,
+      34000,
+      32000
+    )
+  )
+
+  annual_truth %>%
+    select(
+      truth_firm_id,
+      year,
+      nace_code,
+      employees_true,
+      annual_turnover_true
+    ) %>%
+    left_join(
+      accounting_params,
+      by = "nace_code"
+    ) %>%
+    mutate(
+      reference_year =
+        year,
+
+      operating_revenue_complete =
+        round(
+          annual_turnover_true *
+            accounting_revenue_factor *
+            exp(
+              rnorm(
+                n(),
+                mean = 0,
+                sd = 0.020
+              )
+            ),
+          2
+        ),
+
+      purchases_share =
+        pmin(
+          0.85,
+          pmax(
+            0.20,
+            purchases_share_center +
+              rnorm(
+                n(),
+                mean = 0,
+                sd = 0.025
+              )
+          )
+        ),
+
+      purchases_goods_services_complete =
+        round(
+          operating_revenue_complete *
+            purchases_share,
+          2
+        ),
+
+      personnel_expense_complete =
+        round(
+          employees_true *
+            personnel_cost_per_employee *
+            exp(
+              rnorm(
+                n(),
+                mean = 0,
+                sd = 0.030
+              )
+            ),
+          2
+        ),
+
+      operating_revenue =
+        ifelse(
+          runif(n()) < 0.01,
+          NA,
+          operating_revenue_complete
+        ),
+
+      purchases_goods_services =
+        ifelse(
+          runif(n()) < 0.005,
+          -purchases_goods_services_complete,
+          purchases_goods_services_complete
+        ),
+
+      personnel_expense =
+        ifelse(
+          runif(n()) < 0.01,
+          NA,
+          personnel_expense_complete
+        )
+    ) %>%
+    select(
+      truth_firm_id,
+      reference_year,
+      nace_code,
+      operating_revenue_complete,
+      purchases_goods_services_complete,
+      personnel_expense_complete,
+      operating_revenue,
+      purchases_goods_services,
+      personnel_expense
+    )
+}
+
+
+generate_accounting_identity <- function(
+  identity_truth,
+  n_firms
+) {
+  identity_truth %>%
+    transmute(
+      truth_firm_id,
+
+      accounting_source_id =
+        sample(
+          make_source_id(
+            "ACC",
+            n_firms
+          )
+        ),
+
+      business_id =
+        drop_identifier(
+          business_id,
+          probability = 0.10
+        ),
+
+      enterprise_name =
+        perturb_company_name(
+          enterprise_name
+        ),
+
+      street =
+        perturb_street(
+          street
+        ),
+
+      postal_code,
+
+      city =
+        perturb_city(
+          city
+        ),
+
+      legal_form,
+      nace_code
+    )
+}
