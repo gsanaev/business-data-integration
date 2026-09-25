@@ -71,7 +71,10 @@ decide_similarity_candidates <- function(
 rank_similarity_candidates <- function(
   source_entities,
   source_id_column,
-  register_entities
+  register_entities,
+  similarity_weights,
+  score_threshold,
+  margin_threshold
 ) {
   source_for_matching <-
     prepare_source_linkage_records(
@@ -97,8 +100,8 @@ rank_similarity_candidates <- function(
   decisions <-
     decide_similarity_candidates(
       candidate_pairs,
-      similarity_score_threshold,
-      similarity_margin_threshold
+      score_threshold,
+      margin_threshold
     )
 
   list(

@@ -214,7 +214,16 @@ employment_similarity <- rank_similarity_candidates(
     "employment_source_id",
 
   register_entities =
-    register_entities
+    register_entities,
+
+  similarity_weights =
+    similarity_weights,
+
+  score_threshold =
+    similarity_score_threshold,
+
+  margin_threshold =
+    similarity_margin_threshold
 )
 
 employment_links <- employment_base %>%
@@ -314,7 +323,16 @@ turnover_similarity <- rank_similarity_candidates(
     "turnover_source_id",
 
   register_entities =
-    register_entities
+    register_entities,
+
+  similarity_weights =
+    similarity_weights,
+
+  score_threshold =
+    similarity_score_threshold,
+
+  margin_threshold =
+    similarity_margin_threshold
 )
 
 turnover_links <- turnover_base %>%
@@ -414,7 +432,16 @@ accounting_similarity <- rank_similarity_candidates(
     "accounting_source_id",
 
   register_entities =
-    register_entities
+    register_entities,
+
+  similarity_weights =
+    similarity_weights,
+
+  score_threshold =
+    similarity_score_threshold,
+
+  margin_threshold =
+    similarity_margin_threshold
 )
 
 accounting_links <- accounting_base %>%
