@@ -28,6 +28,16 @@ library(janitor)
 library(lubridate)
 
 source("R/helpers/plausibility.R")
+source("R/config.R")
+
+project_config <- load_project_config()
+validation_config <- project_config$processing$validation
+
+foundation_year_min <-
+  validation_config$foundation_year_min
+
+employment_spike_multiplier <-
+  validation_config$employment_spike_multiplier
 
 # Ensure output directory exists ---------------------------------------
 dir.create(
@@ -216,7 +226,7 @@ firms_clean <- firms_raw %>%
     foundation_year_status = case_when(
       is.na(foundation_year_raw) ~ "review_required",
 
-      foundation_year_raw < 1900L |
+      foundation_year_raw < foundation_year_min |
         foundation_year_raw > max_register_year ~ "rejected",
 
       TRUE ~ "accepted"
@@ -226,7 +236,7 @@ firms_clean <- firms_raw %>%
       is.na(foundation_year_raw) ~
         "FOUNDATION_YEAR_MISSING",
 
-      foundation_year_raw < 1900L |
+      foundation_year_raw < foundation_year_min |
         foundation_year_raw > max_register_year ~
         "FOUNDATION_YEAR_INVALID",
 
@@ -273,7 +283,7 @@ employment_clean <- employment_raw %>%
       employees_monthly_raw > 0 &
       !is.na(firm_year_emp_median) &
       employees_monthly_raw >
-        2 * firm_year_emp_median
+        employment_spike_multiplier * firm_year_emp_median
   ) %>%
   ungroup() %>%
   group_by(employment_source_id) %>%
