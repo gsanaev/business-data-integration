@@ -98,3 +98,81 @@ aggregate_indicators <- function(
       .groups = "drop"
     )
 }
+
+validate_indicator_tables <- function(
+  indicator_tables
+) {
+  for (
+    table_name in
+      names(indicator_tables)
+  ) {
+    x <- indicator_tables[[table_name]]
+
+    if (
+      any(
+        x$n_complete_turnover >
+          x$n_enterprises
+      ) ||
+        any(
+          x$n_complete_employment >
+            x$n_enterprises
+        ) ||
+        any(
+          x$n_complete_both >
+            x$n_enterprises
+        )
+    ) {
+      stop(
+        "Indicator coverage counts exceed enterprise counts in ",
+        table_name,
+        "."
+      )
+    }
+
+    if (
+      any(
+        x$total_turnover < 0,
+        na.rm = TRUE
+      ) ||
+        any(
+          x$total_average_employment < 0,
+          na.rm = TRUE
+        ) ||
+        any(
+          x$turnover_complete_both < 0,
+          na.rm = TRUE
+        ) ||
+        any(
+          x$employment_complete_both < 0,
+          na.rm = TRUE
+        )
+    ) {
+      stop(
+        "Negative aggregate values detected in ",
+        table_name,
+        "."
+      )
+    }
+
+    if (
+      any(
+        x$turnover_complete_both >
+          x$total_turnover,
+        na.rm = TRUE
+      ) ||
+        any(
+          x$employment_complete_both >
+            x$total_average_employment,
+          na.rm = TRUE
+        )
+    ) {
+      stop(
+        "Common-population aggregate exceeds its source aggregate in ",
+        table_name,
+        "."
+      )
+    }
+  }
+
+  invisible(TRUE)
+}
