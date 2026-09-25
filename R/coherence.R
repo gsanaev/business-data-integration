@@ -6,7 +6,10 @@
 # Function behavior is intentionally unchanged at this stage.
 # =====================================================================
 
-get_coherence_threshold <- function(rule_id) {
+get_coherence_threshold <- function(
+  rule_id,
+  coherence_rules_config
+) {
   values <-
     coherence_rules_config$expected_range_threshold[
       coherence_rules_config$rule_id ==
@@ -27,7 +30,8 @@ get_coherence_threshold <- function(rule_id) {
 
 get_contract <- function(
   source_name,
-  variable_name
+  variable_name,
+  contracts
 ) {
   result <- contracts %>%
     filter(
@@ -55,16 +59,19 @@ assert_comparable_group <- function(
   left_variable,
   right_source,
   right_variable,
-  expected_group
+  expected_group,
+  contracts
 ) {
   left_contract <- get_contract(
     left_source,
-    left_variable
+    left_variable,
+    contracts
   )
 
   right_contract <- get_contract(
     right_source,
-    right_variable
+    right_variable,
+    contracts
   )
 
   if (
@@ -100,7 +107,7 @@ assert_comparable_group <- function(
   invisible(TRUE)
 }
 
-relative_difference <- function(
+coherence_relative_difference <- function(
   left_value,
   right_value
 ) {
@@ -128,7 +135,9 @@ relative_difference <- function(
 
 finalize_events <- function(
   events,
-  threshold
+  threshold,
+  materiality_medium_percentile,
+  materiality_high_percentile
 ) {
   events %>%
     mutate(
@@ -148,7 +157,7 @@ finalize_events <- function(
       ),
 
       relative_difference =
-        relative_difference(
+        coherence_relative_difference(
           left_value,
           right_value
         ),

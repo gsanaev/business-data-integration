@@ -54,17 +54,20 @@ dir.create(
 
 threshold_revenue_accounting <-
   get_coherence_threshold(
-    "COH_REV_ACCOUNTING"
+    "COH_REV_ACCOUNTING",
+    coherence_rules_config
   )
 
 threshold_revenue_register <-
   get_coherence_threshold(
-    "COH_REV_REGISTER"
+    "COH_REV_REGISTER",
+    coherence_rules_config
   )
 
 threshold_employment_register <-
   get_coherence_threshold(
-    "COH_EMP_REGISTER"
+    "COH_EMP_REGISTER",
+    coherence_rules_config
   )
 
 required_months <- 12L
@@ -114,7 +117,8 @@ assert_comparable_group(
   "turnover",
   "accounting",
   "operating_revenue",
-  "annual_revenue_related"
+  "annual_revenue_related",
+  contracts
 )
 
 assert_comparable_group(
@@ -122,7 +126,8 @@ assert_comparable_group(
   "turnover",
   "register",
   "revenue_last_year",
-  "annual_revenue_related"
+  "annual_revenue_related",
+  contracts
 )
 
 assert_comparable_group(
@@ -130,7 +135,8 @@ assert_comparable_group(
   "employees",
   "register",
   "employees",
-  "employment"
+  "employment",
+  contracts
 )
 
 message("Source-contract comparability checks passed.")
@@ -322,7 +328,11 @@ revenue_accounting_events <- annual_panel %>%
   ) %>%
   finalize_events(
     threshold =
-      threshold_revenue_accounting
+      threshold_revenue_accounting,
+    materiality_medium_percentile =
+      materiality_medium_percentile,
+    materiality_high_percentile =
+      materiality_high_percentile
   )
 
 # ----------------------------------------------------------------------
@@ -395,7 +405,11 @@ revenue_register_events <- annual_panel %>%
   ) %>%
   finalize_events(
     threshold =
-      threshold_revenue_register
+      threshold_revenue_register,
+    materiality_medium_percentile =
+      materiality_medium_percentile,
+    materiality_high_percentile =
+      materiality_high_percentile
   )
 
 # ----------------------------------------------------------------------
@@ -468,7 +482,11 @@ employment_register_events <- annual_panel %>%
   ) %>%
   finalize_events(
     threshold =
-      threshold_employment_register
+      threshold_employment_register,
+    materiality_medium_percentile =
+      materiality_medium_percentile,
+    materiality_high_percentile =
+      materiality_high_percentile
   )
 
 # ----------------------------------------------------------------------
