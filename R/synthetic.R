@@ -436,3 +436,264 @@ create_monthly_reference_profiles <- function() {
       turnover_seasonality
   )
 }
+
+generate_monthly_employment <- function(
+  firm_truth,
+  annual_truth,
+  months,
+  employment_seasonality
+) {
+  expand_grid(
+    truth_firm_id =
+      firm_truth$truth_firm_id,
+    month =
+      months
+  ) %>%
+    mutate(
+      year =
+        as.integer(
+          format(
+            month,
+            "%Y"
+          )
+        ),
+
+      month_num =
+        as.integer(
+          format(
+            month,
+            "%m"
+          )
+        )
+    ) %>%
+    left_join(
+      annual_truth %>%
+        select(
+          truth_firm_id,
+          year,
+          employees_true
+        ),
+      by = c(
+        "truth_firm_id",
+        "year"
+      )
+    ) %>%
+    left_join(
+      firm_truth %>%
+        select(
+          truth_firm_id,
+          nace_code,
+          region_code
+        ),
+      by = "truth_firm_id"
+    ) %>%
+    mutate(
+      seasonal_factor =
+        mapply(
+          function(code, m) {
+            employment_seasonality[[code]][m]
+          },
+          nace_code,
+          month_num
+        ),
+
+      monthly_noise =
+        exp(
+          rnorm(
+            n(),
+            mean = 0,
+            sd = 0.020
+          )
+        ),
+
+      employment_weight =
+        seasonal_factor *
+          monthly_noise
+    ) %>%
+    group_by(
+      truth_firm_id,
+      year
+    ) %>%
+    mutate(
+      employment_weight =
+        employment_weight /
+          mean(
+            employment_weight
+          ),
+
+      employees =
+        pmax(
+          1,
+          round(
+            employees_true *
+              employment_weight
+          )
+        )
+    ) %>%
+    ungroup() %>%
+    mutate(
+      employees_source_complete =
+        employees,
+
+      employees =
+        ifelse(
+          runif(n()) < 0.003,
+          round(
+            employees *
+              runif(
+                n(),
+                min = 1.8,
+                max = 2.8
+              )
+          ),
+          employees
+        ),
+
+      employees =
+        ifelse(
+          runif(n()) < 0.01,
+          NA,
+          employees
+        )
+    ) %>%
+    select(
+      truth_firm_id,
+      month,
+      nace_code,
+      region_code,
+      seasonal_factor,
+      employees_source_complete,
+      employees
+    )
+}
+
+
+generate_monthly_turnover <- function(
+  firm_truth,
+  annual_truth,
+  months,
+  turnover_seasonality
+) {
+  expand_grid(
+    truth_firm_id =
+      firm_truth$truth_firm_id,
+    month =
+      months
+  ) %>%
+    mutate(
+      year =
+        as.integer(
+          format(
+            month,
+            "%Y"
+          )
+        ),
+
+      month_num =
+        as.integer(
+          format(
+            month,
+            "%m"
+          )
+        )
+    ) %>%
+    left_join(
+      annual_truth %>%
+        select(
+          truth_firm_id,
+          year,
+          annual_turnover_true
+        ),
+      by = c(
+        "truth_firm_id",
+        "year"
+      )
+    ) %>%
+    left_join(
+      firm_truth %>%
+        select(
+          truth_firm_id,
+          nace_code,
+          region_code
+        ),
+      by = "truth_firm_id"
+    ) %>%
+    mutate(
+      seasonal_factor =
+        mapply(
+          function(code, m) {
+            turnover_seasonality[[code]][m]
+          },
+          nace_code,
+          month_num
+        ),
+
+      allocation_noise =
+        exp(
+          rnorm(
+            n(),
+            mean = 0,
+            sd = 0.040
+          )
+        ),
+
+      allocation_weight =
+        seasonal_factor *
+          allocation_noise
+    ) %>%
+    group_by(
+      truth_firm_id,
+      year
+    ) %>%
+    mutate(
+      monthly_share =
+        allocation_weight /
+          sum(
+            allocation_weight
+          ),
+
+      turnover_true =
+        annual_turnover_true *
+          monthly_share,
+
+      turnover =
+        round(
+          turnover_true *
+            exp(
+              rnorm(
+                n(),
+                mean = 0,
+                sd = 0.020
+              )
+            ),
+          2
+        )
+    ) %>%
+    ungroup() %>%
+    mutate(
+      turnover_source_complete =
+        turnover,
+
+      turnover =
+        ifelse(
+          runif(n()) < 0.002,
+          -turnover,
+          turnover
+        ),
+
+      turnover =
+        ifelse(
+          runif(n()) < 0.01,
+          NA,
+          turnover
+        )
+    ) %>%
+    select(
+      truth_firm_id,
+      month,
+      nace_code,
+      region_code,
+      turnover_source_complete,
+      turnover
+    )
+}

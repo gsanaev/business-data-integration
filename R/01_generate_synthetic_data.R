@@ -110,182 +110,24 @@ turnover_seasonality <-
 # 6. Create coherent monthly employment observations
 # ----------------------------------------------------------------------
 
-employment <- expand_grid(
-  truth_firm_id = firm_truth$truth_firm_id,
-  month = months
-) %>%
-  mutate(
-    year = as.integer(format(month, "%Y")),
-    month_num = as.integer(format(month, "%m"))
-  ) %>%
-  left_join(
-    annual_truth %>%
-      select(
-        truth_firm_id,
-        year,
-        employees_true
-      ),
-    by = c("truth_firm_id", "year")
-  ) %>%
-  left_join(
-    firm_truth %>%
-      select(
-        truth_firm_id,
-        nace_code,
-        region_code
-      ),
-    by = "truth_firm_id"
-  ) %>%
-  mutate(
-    seasonal_factor = mapply(
-      function(code, m) {
-        employment_seasonality[[code]][m]
-      },
-      nace_code,
-      month_num
-    ),
-
-    monthly_noise = exp(
-      rnorm(n(), mean = 0, sd = 0.020)
-    ),
-
-    employment_weight =
-      seasonal_factor * monthly_noise
-  ) %>%
-  group_by(truth_firm_id, year) %>%
-  mutate(
-    # Re-normalise firm-year fluctuations so annual average employment
-    # remains close to the latent annual employment level.
-    employment_weight =
-      employment_weight / mean(employment_weight),
-
-    employees = pmax(
-      1,
-      round(
-        employees_true * employment_weight
-      )
-    )
-  ) %>%
-  ungroup() %>%
-  mutate(
-    # Preserve the complete source value before injected imperfections.
-    employees_source_complete = employees,
-
-    # Rare reporting spikes.
-    employees = ifelse(
-      runif(n()) < 0.003,
-      round(
-        employees *
-          runif(n(), min = 1.8, max = 2.8)
-      ),
-      employees
-    ),
-
-    # 1% missing monthly employment observations.
-    employees = ifelse(
-      runif(n()) < 0.01,
-      NA,
-      employees
-    )
-  ) %>%
-  select(
-    truth_firm_id,
-    month,
-    nace_code,
-    region_code,
-    seasonal_factor,
-    employees_source_complete,
-    employees
+employment <-
+  generate_monthly_employment(
+    firm_truth,
+    annual_truth,
+    months,
+    employment_seasonality
   )
 
 # ----------------------------------------------------------------------
 # 7. Create coherent monthly turnover observations
 # ----------------------------------------------------------------------
 
-turnover <- expand_grid(
-  truth_firm_id = firm_truth$truth_firm_id,
-  month = months
-) %>%
-  mutate(
-    year = as.integer(format(month, "%Y")),
-    month_num = as.integer(format(month, "%m"))
-  ) %>%
-  left_join(
-    annual_truth %>%
-      select(
-        truth_firm_id,
-        year,
-        annual_turnover_true
-      ),
-    by = c("truth_firm_id", "year")
-  ) %>%
-  left_join(
-    firm_truth %>%
-      select(
-        truth_firm_id,
-        nace_code,
-        region_code
-      ),
-    by = "truth_firm_id"
-  ) %>%
-  mutate(
-    seasonal_factor = mapply(
-      function(code, m) {
-        turnover_seasonality[[code]][m]
-      },
-      nace_code,
-      month_num
-    ),
-
-    allocation_noise = exp(
-      rnorm(n(), mean = 0, sd = 0.040)
-    ),
-
-    allocation_weight =
-      seasonal_factor * allocation_noise
-  ) %>%
-  group_by(truth_firm_id, year) %>%
-  mutate(
-    monthly_share =
-      allocation_weight / sum(allocation_weight),
-
-    # Latent monthly turnover sums exactly to latent annual turnover.
-    turnover_true =
-      annual_turnover_true * monthly_share,
-
-    # Reported monthly turnover contains modest measurement variation.
-    turnover = round(
-      turnover_true *
-        exp(rnorm(n(), mean = 0, sd = 0.020)),
-      2
-    )
-  ) %>%
-  ungroup() %>%
-  mutate(
-    # Preserve the complete source value before injected imperfections.
-    turnover_source_complete = turnover,
-
-    # Rare sign/reporting errors.
-    turnover = ifelse(
-      runif(n()) < 0.002,
-      -turnover,
-      turnover
-    ),
-
-    # 1% missing monthly turnover observations.
-    turnover = ifelse(
-      runif(n()) < 0.01,
-      NA,
-      turnover
-    )
-  ) %>%
-  select(
-    truth_firm_id,
-    month,
-    nace_code,
-    region_code,
-    turnover_source_complete,
-    turnover
+turnover <-
+  generate_monthly_turnover(
+    firm_truth,
+    annual_truth,
+    months,
+    turnover_seasonality
   )
 
 # ----------------------------------------------------------------------
