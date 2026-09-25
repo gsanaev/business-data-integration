@@ -30,6 +30,16 @@ library(dplyr)
 library(readr)
 library(lubridate)
 
+source("R/config.R")
+
+project_config <- load_project_config()
+
+coherence_rules_config <-
+  project_config$coherence_rules
+
+materiality_config <-
+  project_config$processing$coherence$materiality
+
 dir.create(
   "data/processed",
   showWarnings = FALSE,
@@ -40,16 +50,49 @@ dir.create(
 # 1. Rule parameters
 # ----------------------------------------------------------------------
 
-threshold_revenue_accounting <- 0.05
-threshold_revenue_register <- 0.08
-threshold_employment_register <- 0.10
+get_coherence_threshold <- function(rule_id) {
+  values <-
+    coherence_rules_config$expected_range_threshold[
+      coherence_rules_config$rule_id ==
+        rule_id
+    ]
+
+  if (length(values) != 1L) {
+    stop(
+      "Expected exactly one configured threshold for coherence rule ",
+      rule_id,
+      ".",
+      call. = FALSE
+    )
+  }
+
+  values[[1]]
+}
+
+threshold_revenue_accounting <-
+  get_coherence_threshold(
+    "COH_REV_ACCOUNTING"
+  )
+
+threshold_revenue_register <-
+  get_coherence_threshold(
+    "COH_REV_REGISTER"
+  )
+
+threshold_employment_register <-
+  get_coherence_threshold(
+    "COH_EMP_REGISTER"
+  )
 
 required_months <- 12L
 
 # Materiality is assessed within each coherence rule using the
 # distribution of absolute differences among applicable comparisons.
-materiality_medium_percentile <- 0.75
-materiality_high_percentile <- 0.90
+materiality_medium_percentile <-
+  materiality_config$medium_percentile
+
+materiality_high_percentile <-
+  materiality_config$high_percentile
 
 # ----------------------------------------------------------------------
 # 2. Load integrated datasets and source contracts
