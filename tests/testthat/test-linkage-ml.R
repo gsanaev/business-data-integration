@@ -435,3 +435,247 @@ testthat::test_that(
     )
   }
 )
+
+
+testthat::test_that(
+  "RF tuning grid is deliberately bounded",
+  {
+    grid <-
+      rf_linkage_tuning_grid()
+
+    testthat::expect_equal(
+      nrow(
+        grid
+      ),
+      4L
+    )
+
+    testthat::expect_equal(
+      sort(
+        unique(
+          grid$mtry
+        )
+      ),
+      c(
+        2L,
+        4L
+      )
+    )
+
+    testthat::expect_equal(
+      sort(
+        unique(
+          grid$min_node_size
+        )
+      ),
+      c(
+        1L,
+        10L
+      )
+    )
+
+    testthat::expect_true(
+      all(
+        grid$num_trees ==
+          200L
+      )
+    )
+  }
+)
+
+
+testthat::test_that(
+  "RF class weighting balances effective class contribution",
+  {
+    labels <-
+      c(
+        rep(
+          TRUE,
+          2
+        ),
+        rep(
+          FALSE,
+          8
+        )
+      )
+
+    weights <-
+      compute_rf_class_weights(
+        labels
+      )
+
+    testthat::expect_equal(
+      unname(
+        weights[
+          "nonmatch"
+        ]
+      ),
+      1
+    )
+
+    testthat::expect_equal(
+      unname(
+        weights[
+          "match"
+        ]
+      ),
+      4
+    )
+  }
+)
+
+
+testthat::test_that(
+  "RF configuration selection follows the frozen ranking rule",
+  {
+    tuning_summary <-
+      tibble::tibble(
+        config_id =
+          c(
+            "A",
+            "B",
+            "C",
+            "D"
+          ),
+        mtry =
+          c(
+            4L,
+            2L,
+            2L,
+            4L
+          ),
+        min_node_size =
+          c(
+            10L,
+            1L,
+            10L,
+            1L
+          ),
+        num_trees =
+          rep(
+            200L,
+            4
+          ),
+        top1_accuracy =
+          c(
+            0.99,
+            0.99,
+            0.99,
+            0.98
+          ),
+        mean_reciprocal_rank =
+          c(
+            0.995,
+            0.995,
+            0.995,
+            0.999
+          )
+      )
+
+    selected <-
+      select_rf_configuration(
+        tuning_summary
+      )
+
+    testthat::expect_equal(
+      selected$config_id,
+      "C"
+    )
+
+    testthat::expect_equal(
+      selected$mtry,
+      2L
+    )
+
+    testthat::expect_equal(
+      selected$min_node_size,
+      10L
+    )
+  }
+)
+
+
+testthat::test_that(
+  "RF record scoring ranks probabilities within source records",
+  {
+    candidate_pairs <-
+      tibble::tibble(
+        scenario =
+          rep(
+            "baseline",
+            3
+          ),
+        source =
+          rep(
+            "employment",
+            3
+          ),
+        truth_firm_id =
+          rep(
+            "T001",
+            3
+          ),
+        source_record_id =
+          rep(
+            "E001",
+            3
+          ),
+        register_id =
+          c(
+            "R001",
+            "R002",
+            "R003"
+          ),
+        cv_fold =
+          rep(
+            1L,
+            3
+          ),
+        is_true_candidate =
+          c(
+            FALSE,
+            TRUE,
+            FALSE
+          )
+      )
+
+    result <-
+      score_rf_candidate_records(
+        candidate_pairs,
+        c(
+          0.10,
+          0.90,
+          0.40
+        )
+      )
+
+    testthat::expect_true(
+      result$top_candidate_correct
+    )
+
+    testthat::expect_equal(
+      result$true_candidate_rank,
+      1L
+    )
+
+    testthat::expect_equal(
+      result$top_probability,
+      0.90
+    )
+
+    testthat::expect_equal(
+      result$second_probability,
+      0.40
+    )
+
+    testthat::expect_equal(
+      result$probability_margin,
+      0.50
+    )
+
+    testthat::expect_equal(
+      result$reciprocal_rank,
+      1
+    )
+  }
+)

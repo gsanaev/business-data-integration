@@ -578,6 +578,31 @@ list(
   ),
 
   tar_target(
+    rf_tuning_grid,
+    rf_linkage_tuning_grid()
+  ),
+
+  tar_target(
+    rf_cv_tuning,
+    run_rf_cv_tuning(
+      ml_candidate_pairs_cv,
+      tuning_grid =
+        rf_tuning_grid,
+      seed =
+        202606L,
+      num_threads =
+        2L
+    )
+  ),
+
+  tar_target(
+    rf_selected_spec,
+    select_rf_configuration(
+      rf_cv_tuning$summary
+    )
+  ),
+
+  tar_target(
     similarity_policy_grid,
     search_similarity_policy_grid(
       similarity_benchmark_records,
