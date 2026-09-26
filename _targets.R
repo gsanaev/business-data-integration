@@ -22,6 +22,7 @@ tar_source(
     "R/linkage_candidates.R",
     "R/linkage_features.R",
     "R/linkage_similarity.R",
+    "R/linkage_ml.R",
     "R/linkage_decision.R",
     "R/integration.R",
     "R/coherence.R",
@@ -464,6 +465,72 @@ list(
     summarise_similarity_benchmark(
       similarity_benchmark_records
     )
+  ),
+
+  tar_target(
+    ml_candidate_pairs_development,
+    {
+      source_specs <-
+        list(
+          employment =
+            "employment_source_id",
+          turnover =
+            "turnover_source_id",
+          accounting =
+            "accounting_source_id"
+        )
+
+      scenario_names <-
+        c(
+          "baseline",
+          "moderate",
+          "difficult"
+        )
+
+      results <-
+        list()
+
+      result_index <-
+        1L
+
+      for (
+        scenario_name in
+          scenario_names
+      ) {
+        scenario_sources <-
+          identity_scenarios[[scenario_name]]$sources
+
+        for (
+          source_name in
+            names(
+              source_specs
+            )
+        ) {
+          results[[result_index]] <-
+            build_ml_candidate_pairs(
+              source_data =
+                scenario_sources[[source_name]],
+              source_id_column =
+                source_specs[[source_name]],
+              register_data =
+                scenario_sources$firms,
+              enterprise_split =
+                enterprise_split,
+              scenario_name =
+                scenario_name,
+              source_name =
+                source_name
+            )
+
+          result_index <-
+            result_index + 1L
+        }
+      }
+
+      bind_rows(
+        results
+      )
+    }
   ),
 
   tar_target(
