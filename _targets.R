@@ -731,6 +731,326 @@ list(
     )
   ),
 
+  # -------------------------------------------------------------------
+  # Stage 10B: final held-out linkage evaluation
+  # -------------------------------------------------------------------
+
+  tar_target(
+    heldout_candidate_records,
+    {
+      source_specs <-
+        list(
+          employment =
+            "employment_source_id",
+          turnover =
+            "turnover_source_id",
+          accounting =
+            "accounting_source_id"
+        )
+
+      scenario_names <-
+        c(
+          "baseline",
+          "moderate",
+          "difficult"
+        )
+
+      results <-
+        list()
+
+      result_index <-
+        1L
+
+      for (
+        scenario_name in
+          scenario_names
+      ) {
+        scenario_sources <-
+          identity_scenarios[[scenario_name]]$sources
+
+        for (
+          source_name in
+            names(
+              source_specs
+            )
+        ) {
+          results[[result_index]] <-
+            evaluate_candidate_generation(
+              source_data =
+                scenario_sources[[source_name]],
+              source_id_column =
+                source_specs[[source_name]],
+              register_data =
+                scenario_sources$firms,
+              enterprise_split =
+                enterprise_split,
+              scenario_name =
+                scenario_name,
+              source_name =
+                source_name,
+              sample_role =
+                "heldout"
+            )
+
+          result_index <-
+            result_index +
+              1L
+        }
+      }
+
+      dplyr::bind_rows(
+        results
+      )
+    }
+  ),
+
+  tar_target(
+    heldout_candidate_summary,
+    summarise_candidate_generation(
+      heldout_candidate_records
+    )
+  ),
+
+  tar_target(
+    heldout_similarity_records,
+    {
+      similarity_weights <-
+        unlist(
+          project_config$processing$linkage$baseline_similarity$weights,
+          use.names = TRUE
+        )
+
+      source_specs <-
+        list(
+          employment =
+            "employment_source_id",
+          turnover =
+            "turnover_source_id",
+          accounting =
+            "accounting_source_id"
+        )
+
+      scenario_names <-
+        c(
+          "baseline",
+          "moderate",
+          "difficult"
+        )
+
+      results <-
+        list()
+
+      result_index <-
+        1L
+
+      for (
+        scenario_name in
+          scenario_names
+      ) {
+        scenario_sources <-
+          identity_scenarios[[scenario_name]]$sources
+
+        for (
+          source_name in
+            names(
+              source_specs
+            )
+        ) {
+          results[[result_index]] <-
+            build_similarity_benchmark_records(
+              source_data =
+                scenario_sources[[source_name]],
+              source_id_column =
+                source_specs[[source_name]],
+              register_data =
+                scenario_sources$firms,
+              enterprise_split =
+                enterprise_split,
+              scenario_name =
+                scenario_name,
+              source_name =
+                source_name,
+              similarity_weights =
+                similarity_weights,
+              sample_role =
+                "heldout"
+            )
+
+          result_index <-
+            result_index +
+              1L
+        }
+      }
+
+      dplyr::bind_rows(
+        results
+      )
+    }
+  ),
+
+  tar_target(
+    heldout_similarity_summary,
+    summarise_similarity_benchmark(
+      heldout_similarity_records
+    )
+  ),
+
+  tar_target(
+    ml_candidate_pairs_heldout,
+    {
+      source_specs <-
+        list(
+          employment =
+            "employment_source_id",
+          turnover =
+            "turnover_source_id",
+          accounting =
+            "accounting_source_id"
+        )
+
+      scenario_names <-
+        c(
+          "baseline",
+          "moderate",
+          "difficult"
+        )
+
+      results <-
+        list()
+
+      result_index <-
+        1L
+
+      for (
+        scenario_name in
+          scenario_names
+      ) {
+        scenario_sources <-
+          identity_scenarios[[scenario_name]]$sources
+
+        for (
+          source_name in
+            names(
+              source_specs
+            )
+        ) {
+          results[[result_index]] <-
+            build_ml_candidate_pairs(
+              source_data =
+                scenario_sources[[source_name]],
+              source_id_column =
+                source_specs[[source_name]],
+              register_data =
+                scenario_sources$firms,
+              enterprise_split =
+                enterprise_split,
+              scenario_name =
+                scenario_name,
+              source_name =
+                source_name,
+              sample_role =
+                "heldout"
+            )
+
+          result_index <-
+            result_index +
+              1L
+        }
+      }
+
+      candidate_pairs <-
+        dplyr::bind_rows(
+          results
+        )
+
+      validate_ml_candidate_pairs(
+        candidate_pairs,
+        enterprise_split,
+        sample_role =
+          "heldout"
+      )
+
+      candidate_pairs
+    }
+  ),
+
+  tar_target(
+    rf_heldout_records,
+    {
+      match_score <-
+        predict_rf_match_probability(
+          rf_final_development_model$model,
+          ml_candidate_pairs_heldout,
+          num_threads =
+            2L
+        )
+
+      scored_records <-
+        score_rf_candidate_records(
+          ml_candidate_pairs_heldout,
+          match_score
+        )
+
+      complete_rf_evaluation_records(
+        scored_records,
+        heldout_similarity_records
+      )
+    }
+  ),
+
+  tar_target(
+    heldout_rf_summary,
+    summarise_rf_benchmark(
+      rf_heldout_records
+    )
+  ),
+
+  tar_target(
+    heldout_method_comparison,
+    build_linkage_method_comparison(
+      similarity_records =
+        heldout_similarity_records,
+      similarity_policy =
+        similarity_policy_selected,
+      rf_records =
+        rf_heldout_records,
+      rf_policy =
+        rf_selected_policy
+    )
+  ),
+
+  tar_target(
+    heldout_method_comparison_by_scenario,
+    build_linkage_method_comparison_by_group(
+      similarity_records =
+        heldout_similarity_records,
+      similarity_policy =
+        similarity_policy_selected,
+      rf_records =
+        rf_heldout_records,
+      rf_policy =
+        rf_selected_policy,
+      group_column =
+        "scenario"
+    )
+  ),
+
+  tar_target(
+    heldout_method_comparison_by_source,
+    build_linkage_method_comparison_by_group(
+      similarity_records =
+        heldout_similarity_records,
+      similarity_policy =
+        similarity_policy_selected,
+      rf_records =
+        rf_heldout_records,
+      rf_policy =
+        rf_selected_policy,
+      group_column =
+        "source"
+    )
+  ),
+
   tar_target(
     raw_files,
     {

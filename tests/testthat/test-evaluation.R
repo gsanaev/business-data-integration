@@ -1089,3 +1089,242 @@ testthat::test_that(
     )
   }
 )
+
+# =====================================================================
+# Stage 10B policy and RF completion tests
+# =====================================================================
+
+testthat::test_that(
+  "similarity policy treats zero-candidate records as unmatched",
+  {
+    records <-
+      tibble::tibble(
+        candidate_count =
+          c(
+            1L,
+            0L
+          ),
+        top_similarity_score =
+          c(
+            0.90,
+            NA_real_
+          ),
+        similarity_margin =
+          c(
+            0.20,
+            NA_real_
+          ),
+        top_candidate_correct =
+          c(
+            TRUE,
+            FALSE
+          )
+      )
+
+    result <-
+      evaluate_similarity_policy(
+        records,
+        score_threshold =
+          0.55,
+        margin_threshold =
+          0.005
+      )
+
+    testthat::expect_equal(
+      result$auto_links,
+      1L
+    )
+
+    testthat::expect_equal(
+      result$correct_auto_links,
+      1L
+    )
+
+    testthat::expect_equal(
+      result$false_auto_links,
+      0L
+    )
+
+    testthat::expect_equal(
+      result$review_records,
+      0L
+    )
+
+    testthat::expect_equal(
+      result$unmatched_records,
+      1L
+    )
+  }
+)
+
+
+testthat::test_that(
+  "RF policy treats zero-candidate records as unmatched",
+  {
+    records <-
+      tibble::tibble(
+        candidate_count =
+          c(
+            1L,
+            0L
+          ),
+        top_probability =
+          c(
+            0.90,
+            0
+          ),
+        probability_margin =
+          c(
+            0.20,
+            0
+          ),
+        top_candidate_correct =
+          c(
+            TRUE,
+            FALSE
+          )
+      )
+
+    result <-
+      evaluate_rf_policy(
+        records,
+        probability_threshold =
+          0.01,
+        margin_threshold =
+          0.005
+      )
+
+    testthat::expect_equal(
+      result$auto_links,
+      1L
+    )
+
+    testthat::expect_equal(
+      result$correct_auto_links,
+      1L
+    )
+
+    testthat::expect_equal(
+      result$false_auto_links,
+      0L
+    )
+
+    testthat::expect_equal(
+      result$review_records,
+      0L
+    )
+
+    testthat::expect_equal(
+      result$unmatched_records,
+      1L
+    )
+  }
+)
+
+
+testthat::test_that(
+  "RF evaluation completion preserves every unresolved record",
+  {
+    reference_records <-
+      tibble::tibble(
+        scenario =
+          c(
+            "baseline",
+            "baseline"
+          ),
+        source =
+          c(
+            "employment",
+            "employment"
+          ),
+        truth_firm_id =
+          c(
+            "T001",
+            "T002"
+          ),
+        source_record_id =
+          c(
+            "E001",
+            "E002"
+          )
+      )
+
+    rf_records <-
+      tibble::tibble(
+        scenario =
+          "baseline",
+        source =
+          "employment",
+        truth_firm_id =
+          "T001",
+        source_record_id =
+          "E001",
+        cv_fold =
+          NA_integer_,
+        candidate_count =
+          2L,
+        true_candidate_present =
+          TRUE,
+        top_candidate_correct =
+          TRUE,
+        top_probability =
+          0.90,
+        second_probability =
+          0.20,
+        probability_margin =
+          0.70,
+        true_candidate_rank =
+          1L,
+        reciprocal_rank =
+          1
+      )
+
+    result <-
+      complete_rf_evaluation_records(
+        rf_records,
+        reference_records
+      )
+
+    testthat::expect_equal(
+      nrow(
+        result
+      ),
+      2L
+    )
+
+    zero_candidate <-
+      result %>%
+      dplyr::filter(
+        .data$source_record_id ==
+          "E002"
+      )
+
+    testthat::expect_equal(
+      zero_candidate$candidate_count,
+      0L
+    )
+
+    testthat::expect_false(
+      zero_candidate$true_candidate_present
+    )
+
+    testthat::expect_false(
+      zero_candidate$top_candidate_correct
+    )
+
+    testthat::expect_equal(
+      zero_candidate$top_probability,
+      0
+    )
+
+    testthat::expect_equal(
+      zero_candidate$probability_margin,
+      0
+    )
+
+    testthat::expect_equal(
+      zero_candidate$reciprocal_rank,
+      0
+    )
+  }
+)
