@@ -263,3 +263,76 @@ testthat::test_that(
     )
   }
 )
+
+
+testthat::test_that(
+  "missing postcode contributes zero evidence without making score missing",
+  {
+    candidate <-
+      tibble::tibble(
+        source_record_id =
+          "E001",
+        register_id =
+          "R001",
+        canonical_firm_id =
+          "C000001",
+        enterprise_name_source =
+          "Alpha GmbH",
+        enterprise_name_register =
+          "Alpha GmbH",
+        street_source =
+          "Hauptstrasse 1",
+        street_register =
+          "Hauptstrasse 1",
+        postal_code_source =
+          NA_character_,
+        postal_code_register =
+          "12345",
+        city_source =
+          "Berlin",
+        city_register =
+          "Berlin",
+        legal_form_source =
+          "GmbH",
+        legal_form_register =
+          "GmbH",
+        nace_code_source =
+          "G47",
+        nace_code_register =
+          "G47"
+      )
+
+    weights <-
+      c(
+        name_similarity = 0.40,
+        street_similarity = 0.30,
+        city_similarity = 0.05,
+        postal_code_match = 0.10,
+        legal_form_match = 0.075,
+        nace_match = 0.075
+      )
+
+    scored <-
+      candidate %>%
+      add_linkage_features() %>%
+      score_and_rank_similarity_candidates(
+        weights
+      )
+
+    testthat::expect_equal(
+      scored$postal_code_match,
+      0
+    )
+
+    testthat::expect_false(
+      is.na(
+        scored$similarity_score
+      )
+    )
+
+    testthat::expect_equal(
+      scored$similarity_score,
+      0.90
+    )
+  }
+)

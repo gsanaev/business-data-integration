@@ -30,9 +30,18 @@ add_linkage_features <- function(
         ),
 
       postal_code_match =
-        as.numeric(
-          postal_code_source ==
-            postal_code_register
+        dplyr::if_else(
+          is.na(
+            postal_code_source
+          ) |
+            is.na(
+              postal_code_register
+            ),
+          0,
+          as.numeric(
+            postal_code_source ==
+              postal_code_register
+          )
         ),
 
       legal_form_match =
