@@ -534,6 +534,50 @@ list(
   ),
 
   tar_target(
+    ml_cv_folds,
+    {
+      validate_ml_candidate_pairs(
+        ml_candidate_pairs_development,
+        enterprise_split
+      )
+
+      create_grouped_cv_folds(
+        ml_candidate_pairs_development,
+        n_folds =
+          5L,
+        seed =
+          202605L
+      )
+    }
+  ),
+
+  tar_target(
+    ml_candidate_pairs_cv,
+    {
+      candidate_pairs_cv <-
+        attach_grouped_cv_folds(
+          ml_candidate_pairs_development,
+          ml_cv_folds
+        )
+
+      validate_grouped_cv_assignment(
+        candidate_pairs_cv,
+        n_folds =
+          5L
+      )
+
+      candidate_pairs_cv
+    }
+  ),
+
+  tar_target(
+    ml_cv_summary,
+    summarise_ml_cv_folds(
+      ml_candidate_pairs_cv
+    )
+  ),
+
+  tar_target(
     similarity_policy_grid,
     search_similarity_policy_grid(
       similarity_benchmark_records,
