@@ -651,6 +651,38 @@ list(
   ),
 
   tar_target(
+    rf_final_development_model,
+    fit_rf_candidate_model(
+      training_pairs =
+        ml_candidate_pairs_development,
+      mtry =
+        rf_selected_spec$mtry[[1]],
+      min_node_size =
+        rf_selected_spec$min_node_size[[1]],
+      num_trees =
+        rf_selected_spec$num_trees[[1]],
+      seed =
+        202607L,
+      num_threads =
+        2L
+    )
+  ),
+
+  tar_target(
+    development_method_comparison,
+    build_development_method_comparison(
+      similarity_records =
+        similarity_benchmark_records,
+      similarity_policy =
+        similarity_policy_selected,
+      rf_records =
+        rf_oof_records,
+      rf_policy =
+        rf_selected_policy
+    )
+  ),
+
+  tar_target(
     similarity_policy_grid,
     search_similarity_policy_grid(
       similarity_benchmark_records,

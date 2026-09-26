@@ -730,3 +730,95 @@ testthat::test_that(
     )
   }
 )
+
+
+testthat::test_that(
+  "development comparison reports both linkage methods consistently",
+  {
+    similarity_records <-
+      tibble::tibble(
+        top_similarity_score =
+          c(
+            0.90,
+            0.80
+          ),
+        similarity_margin =
+          c(
+            0.20,
+            0.10
+          ),
+        top_candidate_correct =
+          c(
+            TRUE,
+            FALSE
+          )
+      )
+
+    similarity_policy <-
+      tibble::tibble(
+        score_threshold =
+          0.50,
+        margin_threshold =
+          0.05
+      )
+
+    rf_records <-
+      tibble::tibble(
+        top_probability =
+          c(
+            0.90,
+            0.20
+          ),
+        probability_margin =
+          c(
+            0.30,
+            0.01
+          ),
+        top_candidate_correct =
+          c(
+            TRUE,
+            FALSE
+          )
+      )
+
+    rf_policy <-
+      tibble::tibble(
+        probability_threshold =
+          0.10,
+        margin_threshold =
+          0.05
+      )
+
+    result <-
+      build_development_method_comparison(
+        similarity_records,
+        similarity_policy,
+        rf_records,
+        rf_policy
+      )
+
+    testthat::expect_equal(
+      result$method,
+      c(
+        "weighted_similarity",
+        "random_forest"
+      )
+    )
+
+    testthat::expect_equal(
+      result$unresolved_records,
+      c(
+        2L,
+        2L
+      )
+    )
+
+    testthat::expect_equal(
+      result$false_auto_links,
+      c(
+        1L,
+        0L
+      )
+    )
+  }
+)

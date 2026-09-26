@@ -1459,3 +1459,67 @@ select_rf_policy <- function(
         )
     )
 }
+
+
+# =====================================================================
+# Frozen development comparison
+# =====================================================================
+
+build_development_method_comparison <- function(
+  similarity_records,
+  similarity_policy,
+  rf_records,
+  rf_policy
+) {
+  similarity_result <-
+    evaluate_similarity_policy(
+      similarity_records,
+      score_threshold =
+        similarity_policy$score_threshold[[1]],
+      margin_threshold =
+        similarity_policy$margin_threshold[[1]]
+    )
+
+  rf_result <-
+    evaluate_rf_policy(
+      rf_records,
+      probability_threshold =
+        rf_policy$probability_threshold[[1]],
+      margin_threshold =
+        rf_policy$margin_threshold[[1]]
+    )
+
+  dplyr::bind_rows(
+    similarity_result %>%
+      dplyr::transmute(
+        method =
+          "weighted_similarity",
+        unresolved_records,
+        auto_links,
+        correct_auto_links,
+        false_auto_links,
+        auto_precision,
+        automation_rate,
+        review_records,
+        review_rate,
+        unmatched_records,
+        unmatched_rate
+      ),
+
+    rf_result %>%
+      dplyr::transmute(
+        method =
+          "random_forest",
+        unresolved_records,
+        auto_links,
+        correct_auto_links,
+        false_auto_links,
+        auto_precision,
+        automation_rate,
+        review_records,
+        review_rate,
+        unmatched_records,
+        unmatched_rate
+      )
+  )
+}
