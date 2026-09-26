@@ -467,6 +467,24 @@ list(
   ),
 
   tar_target(
+    similarity_policy_grid,
+    search_similarity_policy_grid(
+      similarity_benchmark_records,
+      precision_target =
+        0.99
+    )
+  ),
+
+  tar_target(
+    similarity_policy_selected,
+    select_similarity_policy(
+      similarity_policy_grid,
+      precision_target =
+        0.99
+    )
+  ),
+
+  tar_target(
     raw_files,
     {
       dir.create(
@@ -666,10 +684,10 @@ list(
         )
 
       similarity_score_threshold <-
-        baseline_similarity_config$score_threshold
+        similarity_policy_selected$score_threshold[[1]]
 
       similarity_margin_threshold <-
-        baseline_similarity_config$margin_threshold
+        similarity_policy_selected$margin_threshold[[1]]
 
       firms <-
         read_csv(

@@ -969,3 +969,246 @@ summarise_similarity_benchmark <- function(
       .groups = "drop"
     )
 }
+
+
+# =====================================================================
+# Similarity decision-policy selection
+# =====================================================================
+
+evaluate_similarity_policy <- function(
+  benchmark_records,
+  score_threshold,
+  margin_threshold
+) {
+  auto_link <-
+    benchmark_records$top_similarity_score >=
+      score_threshold &
+    benchmark_records$similarity_margin >=
+      margin_threshold
+
+  review <-
+    benchmark_records$top_similarity_score >=
+      score_threshold &
+    benchmark_records$similarity_margin <
+      margin_threshold
+
+  unmatched <-
+    benchmark_records$top_similarity_score <
+      score_threshold
+
+  auto_links <-
+    sum(
+      auto_link
+    )
+
+  correct_auto_links <-
+    sum(
+      auto_link &
+        benchmark_records$top_candidate_correct
+    )
+
+  false_auto_links <-
+    sum(
+      auto_link &
+        !benchmark_records$top_candidate_correct
+    )
+
+  tibble::tibble(
+    score_threshold =
+      score_threshold,
+
+    margin_threshold =
+      margin_threshold,
+
+    unresolved_records =
+      nrow(
+        benchmark_records
+      ),
+
+    auto_links =
+      auto_links,
+
+    correct_auto_links =
+      correct_auto_links,
+
+    false_auto_links =
+      false_auto_links,
+
+    auto_precision =
+      if (
+        auto_links > 0L
+      ) {
+        correct_auto_links /
+          auto_links
+      } else {
+        NA_real_
+      },
+
+    automation_rate =
+      auto_links /
+        nrow(
+          benchmark_records
+        ),
+
+    review_records =
+      sum(
+        review
+      ),
+
+    review_rate =
+      mean(
+        review
+      ),
+
+    unmatched_records =
+      sum(
+        unmatched
+      ),
+
+    unmatched_rate =
+      mean(
+        unmatched
+      )
+  )
+}
+
+
+search_similarity_policy_grid <- function(
+  benchmark_records,
+  precision_target = 0.99,
+  score_grid =
+    seq(
+      0,
+      1,
+      by = 0.005
+    ),
+  margin_grid =
+    seq(
+      0.005,
+      0.5,
+      by = 0.005
+    )
+) {
+  if (
+    length(precision_target) != 1L ||
+      !is.numeric(
+        precision_target
+      ) ||
+      !is.finite(
+        precision_target
+      ) ||
+      precision_target <= 0 ||
+      precision_target > 1
+  ) {
+    stop(
+      "precision_target must lie in (0, 1]."
+    )
+  }
+
+  if (
+    any(
+      margin_grid <= 0
+    )
+  ) {
+    stop(
+      "margin_grid must contain strictly positive thresholds."
+    )
+  }
+
+  results <-
+    vector(
+      "list",
+      length(
+        score_grid
+      ) *
+        length(
+          margin_grid
+        )
+    )
+
+  index <- 1L
+
+  for (
+    score_threshold in
+      score_grid
+  ) {
+    for (
+      margin_threshold in
+        margin_grid
+    ) {
+      results[[index]] <-
+        evaluate_similarity_policy(
+          benchmark_records,
+          score_threshold,
+          margin_threshold
+        )
+
+      index <-
+        index + 1L
+    }
+  }
+
+  dplyr::bind_rows(
+    results
+  )
+}
+
+
+select_similarity_policy <- function(
+  policy_grid,
+  precision_target = 0.99
+) {
+  feasible <-
+    policy_grid %>%
+    dplyr::filter(
+      !is.na(
+        .data$auto_precision
+      ),
+      .data$auto_precision >=
+        precision_target
+    )
+
+  if (
+    nrow(
+      feasible
+    ) == 0L
+  ) {
+    stop(
+      "No similarity policy satisfies the precision target."
+    )
+  }
+
+  maximum_auto_links <-
+    max(
+      feasible$auto_links
+    )
+
+  feasible %>%
+    dplyr::filter(
+      .data$auto_links ==
+        maximum_auto_links
+    ) %>%
+    dplyr::arrange(
+      dplyr::desc(
+        .data$score_threshold
+      ),
+      dplyr::desc(
+        .data$margin_threshold
+      )
+    ) %>%
+    dplyr::slice_head(
+      n = 1L
+    ) %>%
+    dplyr::mutate(
+      precision_target =
+        precision_target,
+
+      selection_rule =
+        paste(
+          "precision >=",
+          precision_target,
+          "; maximize auto-links;",
+          "tie-break by higher score then margin threshold"
+        )
+    )
+}
