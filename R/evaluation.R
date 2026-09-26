@@ -1212,3 +1212,250 @@ select_similarity_policy <- function(
         )
     )
 }
+
+
+# =====================================================================
+# Random Forest linkage decision-policy selection
+# =====================================================================
+
+evaluate_rf_policy <- function(
+  oof_records,
+  probability_threshold,
+  margin_threshold
+) {
+  auto_link <-
+    oof_records$top_probability >=
+      probability_threshold &
+    oof_records$probability_margin >=
+      margin_threshold
+
+  review <-
+    oof_records$top_probability >=
+      probability_threshold &
+    oof_records$probability_margin <
+      margin_threshold
+
+  unmatched <-
+    oof_records$top_probability <
+      probability_threshold
+
+  auto_links <-
+    sum(
+      auto_link
+    )
+
+  correct_auto_links <-
+    sum(
+      auto_link &
+        oof_records$top_candidate_correct
+    )
+
+  false_auto_links <-
+    sum(
+      auto_link &
+        !oof_records$top_candidate_correct
+    )
+
+  tibble::tibble(
+    probability_threshold =
+      probability_threshold,
+
+    margin_threshold =
+      margin_threshold,
+
+    unresolved_records =
+      nrow(
+        oof_records
+      ),
+
+    auto_links =
+      auto_links,
+
+    correct_auto_links =
+      correct_auto_links,
+
+    false_auto_links =
+      false_auto_links,
+
+    auto_precision =
+      if (
+        auto_links > 0L
+      ) {
+        correct_auto_links /
+          auto_links
+      } else {
+        NA_real_
+      },
+
+    automation_rate =
+      auto_links /
+        nrow(
+          oof_records
+        ),
+
+    review_records =
+      sum(
+        review
+      ),
+
+    review_rate =
+      mean(
+        review
+      ),
+
+    unmatched_records =
+      sum(
+        unmatched
+      ),
+
+    unmatched_rate =
+      mean(
+        unmatched
+      )
+  )
+}
+
+
+search_rf_policy_grid <- function(
+  oof_records,
+  precision_target = 0.99,
+  probability_grid =
+    seq(
+      0,
+      1,
+      by = 0.005
+    ),
+  margin_grid =
+    seq(
+      0.005,
+      0.5,
+      by = 0.005
+    )
+) {
+  if (
+    length(
+      precision_target
+    ) != 1L ||
+      !is.numeric(
+        precision_target
+      ) ||
+      !is.finite(
+        precision_target
+      ) ||
+      precision_target <= 0 ||
+      precision_target > 1
+  ) {
+    stop(
+      "precision_target must lie in (0, 1]."
+    )
+  }
+
+  if (
+    any(
+      margin_grid <= 0
+    )
+  ) {
+    stop(
+      "margin_grid must contain strictly positive thresholds."
+    )
+  }
+
+  results <-
+    vector(
+      "list",
+      length(
+        probability_grid
+      ) *
+        length(
+          margin_grid
+        )
+    )
+
+  index <-
+    1L
+
+  for (
+    probability_threshold in
+      probability_grid
+  ) {
+    for (
+      margin_threshold in
+        margin_grid
+    ) {
+      results[[index]] <-
+        evaluate_rf_policy(
+          oof_records,
+          probability_threshold,
+          margin_threshold
+        )
+
+      index <-
+        index + 1L
+    }
+  }
+
+  dplyr::bind_rows(
+    results
+  )
+}
+
+
+select_rf_policy <- function(
+  policy_grid,
+  precision_target = 0.99
+) {
+  feasible <-
+    policy_grid %>%
+    dplyr::filter(
+      !is.na(
+        .data$auto_precision
+      ),
+      .data$auto_precision >=
+        precision_target
+    )
+
+  if (
+    nrow(
+      feasible
+    ) == 0L
+  ) {
+    stop(
+      "No RF linkage policy satisfies the precision target."
+    )
+  }
+
+  maximum_auto_links <-
+    max(
+      feasible$auto_links
+    )
+
+  feasible %>%
+    dplyr::filter(
+      .data$auto_links ==
+        maximum_auto_links
+    ) %>%
+    dplyr::arrange(
+      dplyr::desc(
+        .data$probability_threshold
+      ),
+      dplyr::desc(
+        .data$margin_threshold
+      )
+    ) %>%
+    dplyr::slice_head(
+      n =
+        1L
+    ) %>%
+    dplyr::mutate(
+      precision_target =
+        precision_target,
+
+      selection_rule =
+        paste(
+          "precision >=",
+          precision_target,
+          "; maximize auto-links;",
+          "tie-break by higher probability then margin threshold"
+        )
+    )
+}

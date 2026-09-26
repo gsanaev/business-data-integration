@@ -603,6 +603,54 @@ list(
   ),
 
   tar_target(
+    rf_oof_records,
+    {
+      selected_config_id <-
+        rf_selected_spec$config_id[[1]]
+
+      selected_records <-
+        rf_cv_tuning$record_metrics %>%
+        dplyr::filter(
+          .data$config_id ==
+            selected_config_id
+        )
+
+      if (
+        nrow(
+          selected_records
+        ) !=
+          nrow(
+            similarity_benchmark_records
+          )
+      ) {
+        stop(
+          "Selected RF OOF records do not match the development benchmark size."
+        )
+      }
+
+      selected_records
+    }
+  ),
+
+  tar_target(
+    rf_policy_grid,
+    search_rf_policy_grid(
+      rf_oof_records,
+      precision_target =
+        0.99
+    )
+  ),
+
+  tar_target(
+    rf_selected_policy,
+    select_rf_policy(
+      rf_policy_grid,
+      precision_target =
+        0.99
+    )
+  ),
+
+  tar_target(
     similarity_policy_grid,
     search_similarity_policy_grid(
       similarity_benchmark_records,

@@ -556,3 +556,177 @@ testthat::test_that(
     )
   }
 )
+
+
+testthat::test_that(
+  "RF policy separates auto-link review and unmatched records",
+  {
+    records <-
+      tibble::tibble(
+        top_probability =
+          c(
+            0.90,
+            0.80,
+            0.70,
+            0.20
+          ),
+        probability_margin =
+          c(
+            0.30,
+            0.01,
+            0.20,
+            0.10
+          ),
+        top_candidate_correct =
+          c(
+            TRUE,
+            FALSE,
+            TRUE,
+            TRUE
+          )
+      )
+
+    result <-
+      evaluate_rf_policy(
+        records,
+        probability_threshold =
+          0.50,
+        margin_threshold =
+          0.05
+      )
+
+    testthat::expect_equal(
+      result$auto_links,
+      2L
+    )
+
+    testthat::expect_equal(
+      result$correct_auto_links,
+      2L
+    )
+
+    testthat::expect_equal(
+      result$false_auto_links,
+      0L
+    )
+
+    testthat::expect_equal(
+      result$review_records,
+      1L
+    )
+
+    testthat::expect_equal(
+      result$unmatched_records,
+      1L
+    )
+
+    testthat::expect_equal(
+      result$auto_precision,
+      1
+    )
+  }
+)
+
+
+testthat::test_that(
+  "RF policy selection maximizes automation with conservative tie-break",
+  {
+    policy_grid <-
+      tibble::tibble(
+        probability_threshold =
+          c(
+            0.10,
+            0.20,
+            0.80
+          ),
+        margin_threshold =
+          c(
+            0.005,
+            0.005,
+            0.10
+          ),
+        unresolved_records =
+          c(
+            100L,
+            100L,
+            100L
+          ),
+        auto_links =
+          c(
+            100L,
+            100L,
+            99L
+          ),
+        correct_auto_links =
+          c(
+            99L,
+            99L,
+            99L
+          ),
+        false_auto_links =
+          c(
+            1L,
+            1L,
+            0L
+          ),
+        auto_precision =
+          c(
+            0.99,
+            0.99,
+            1
+          ),
+        automation_rate =
+          c(
+            1,
+            1,
+            0.99
+          ),
+        review_records =
+          c(
+            0L,
+            0L,
+            1L
+          ),
+        review_rate =
+          c(
+            0,
+            0,
+            0.01
+          ),
+        unmatched_records =
+          c(
+            0L,
+            0L,
+            0L
+          ),
+        unmatched_rate =
+          c(
+            0,
+            0,
+            0
+          )
+      )
+
+    selected <-
+      select_rf_policy(
+        policy_grid,
+        precision_target =
+          0.99
+      )
+
+    testthat::expect_equal(
+      selected$probability_threshold,
+      0.20
+    )
+
+    testthat::expect_equal(
+      selected$margin_threshold,
+      0.005
+    )
+
+    testthat::expect_equal(
+      selected$auto_links,
+      100L
+    )
+  }
+)
