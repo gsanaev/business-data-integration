@@ -378,3 +378,251 @@ build_coherence_outcomes_plot <- function(
     ) +
     base_theme
 }
+
+
+# =====================================================================
+# Statistical-process quality evidence
+# =====================================================================
+
+build_quality_evidence_registry <- function() {
+  tibble::tribble(
+    ~evidence_id,
+    ~dimension,
+    ~measure,
+    ~scope,
+    ~reporting_level,
+
+    "candidate_recall",
+    "accuracy",
+    "Candidate recall",
+    "Candidate generation",
+    "Overall / scenario / source",
+
+    "top1_accuracy",
+    "accuracy",
+    "Top-1 candidate accuracy",
+    "Candidate ranking",
+    "Overall / scenario / source",
+
+    "auto_precision",
+    "accuracy",
+    "Automatic-link precision",
+    "Decision policy",
+    "Overall / scenario / source",
+
+    "false_auto_links",
+    "accuracy",
+    "False automatic links",
+    "Decision policy",
+    "Overall / scenario / source",
+
+    "automation_rate",
+    "operational_efficiency",
+    "Automation rate",
+    "Decision policy",
+    "Overall / scenario / source",
+
+    "review_rate",
+    "operational_efficiency",
+    "Review rate",
+    "Decision policy",
+    "Overall / scenario / source",
+
+    "unmatched_rate",
+    "operational_efficiency",
+    "Unmatched rate",
+    "Decision policy",
+    "Overall / scenario / source",
+
+    "scenario_robustness",
+    "robustness",
+    "Performance across identity scenarios",
+    "Linkage workflow",
+    "Baseline / moderate / difficult",
+
+    "source_robustness",
+    "robustness",
+    "Performance across source types",
+    "Linkage workflow",
+    "Employment / turnover / accounting",
+
+    "enterprise_count_error",
+    "statistical_impact",
+    "Enterprise-count error",
+    "Downstream indicators",
+    "Absolute and relative error",
+
+    "turnover_error",
+    "statistical_impact",
+    "Turnover error",
+    "Downstream indicators",
+    "Absolute and relative error",
+
+    "employment_error",
+    "statistical_impact",
+    "Employment error",
+    "Downstream indicators",
+    "Absolute and relative error",
+
+    "turnover_per_employee_error",
+    "statistical_impact",
+    "Turnover-per-employee error",
+    "Downstream indicators",
+    "Absolute and relative error",
+
+    "traceability",
+    "traceability",
+    "Linkage specification and thresholds",
+    "Process metadata",
+    "Frozen specification",
+
+    "reproducibility",
+    "reproducibility",
+    "Seeds, split, CV and software workflow",
+    "Process metadata",
+    "Frozen specification"
+  )
+}
+
+
+build_linkage_process_metadata <- function(
+  rf_spec,
+  rf_policy,
+  similarity_policy,
+  feature_columns,
+  development_share = 0.70,
+  n_cv_folds = 5L,
+  split_seed = 202604L,
+  cv_seed = 202605L,
+  rf_tuning_seed = 202606L,
+  rf_final_seed = 202607L
+) {
+  if (
+    length(feature_columns) == 0L ||
+      anyNA(feature_columns) ||
+      any(!nzchar(feature_columns))
+  ) {
+    stop(
+      "feature_columns must contain non-missing feature names."
+    )
+  }
+
+  if (
+    nrow(rf_spec) != 1L ||
+      nrow(rf_policy) != 1L ||
+      nrow(similarity_policy) != 1L
+  ) {
+    stop(
+      "Frozen model and policy inputs must each contain exactly one row."
+    )
+  }
+
+  tibble::tribble(
+    ~metadata_key,
+    ~metadata_value,
+
+    "linkage_design",
+    "Level 1 trusted identifier; Level 2 candidate-based linkage",
+
+    "candidate_generation",
+    "Transparent blocking using postcode OR NACE",
+
+    "linkage_features",
+    paste(
+      feature_columns,
+      collapse = ", "
+    ),
+
+    "development_share",
+    as.character(
+      development_share
+    ),
+
+    "heldout_share",
+    as.character(
+      1 - development_share
+    ),
+
+    "grouped_cv_folds",
+    as.character(
+      n_cv_folds
+    ),
+
+    "enterprise_split_seed",
+    as.character(
+      split_seed
+    ),
+
+    "cv_fold_seed",
+    as.character(
+      cv_seed
+    ),
+
+    "rf_tuning_seed",
+    as.character(
+      rf_tuning_seed
+    ),
+
+    "rf_final_model_seed",
+    as.character(
+      rf_final_seed
+    ),
+
+    "rf_engine",
+    "ranger",
+
+    "rf_num_trees",
+    as.character(
+      rf_spec$num_trees[[1]]
+    ),
+
+    "rf_mtry",
+    as.character(
+      rf_spec$mtry[[1]]
+    ),
+
+    "rf_min_node_size",
+    as.character(
+      rf_spec$min_node_size[[1]]
+    ),
+
+    "rf_class_weighting",
+    "nonmatch = 1; match = negative / positive training pairs",
+
+    "rf_score_threshold",
+    as.character(
+      rf_policy$probability_threshold[[1]]
+    ),
+
+    "rf_margin_threshold",
+    as.character(
+      rf_policy$margin_threshold[[1]]
+    ),
+
+    "rf_precision_target",
+    as.character(
+      rf_policy$precision_target[[1]]
+    ),
+
+    "similarity_score_threshold",
+    as.character(
+      similarity_policy$score_threshold[[1]]
+    ),
+
+    "similarity_margin_threshold",
+    as.character(
+      similarity_policy$margin_threshold[[1]]
+    ),
+
+    "similarity_precision_target",
+    as.character(
+      similarity_policy$precision_target[[1]]
+    ),
+
+    "training_scope",
+    "Development enterprises only",
+
+    "heldout_role",
+    "Reserved for final evaluation; not used for model or policy selection"
+  )
+}

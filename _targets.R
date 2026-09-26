@@ -683,6 +683,37 @@ list(
   ),
 
   tar_target(
+    quality_evidence_registry,
+    build_quality_evidence_registry()
+  ),
+
+  tar_target(
+    linkage_process_metadata,
+    build_linkage_process_metadata(
+      rf_spec =
+        rf_selected_spec,
+      rf_policy =
+        rf_selected_policy,
+      similarity_policy =
+        similarity_policy_selected,
+      feature_columns =
+        ml_linkage_feature_columns(),
+      development_share =
+        0.70,
+      n_cv_folds =
+        5L,
+      split_seed =
+        202604L,
+      cv_seed =
+        202605L,
+      rf_tuning_seed =
+        202606L,
+      rf_final_seed =
+        202607L
+    )
+  ),
+
+  tar_target(
     similarity_policy_grid,
     search_similarity_policy_grid(
       similarity_benchmark_records,
