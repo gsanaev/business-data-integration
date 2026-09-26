@@ -1,3 +1,44 @@
+suppressPackageStartupMessages(
+  library(dplyr)
+)
+
+source(
+  testthat::test_path(
+    "..",
+    "..",
+    "R",
+    "helpers",
+    "linkage_similarity.R"
+  )
+)
+
+source(
+  testthat::test_path(
+    "..",
+    "..",
+    "R",
+    "linkage_candidates.R"
+  )
+)
+
+source(
+  testthat::test_path(
+    "..",
+    "..",
+    "R",
+    "linkage_features.R"
+  )
+)
+
+source(
+  testthat::test_path(
+    "..",
+    "..",
+    "R",
+    "linkage_similarity.R"
+  )
+)
+
 source(
   testthat::test_path(
     "..",
@@ -819,6 +860,232 @@ testthat::test_that(
         1L,
         0L
       )
+    )
+  }
+)
+
+# =====================================================================
+# Stage 10A held-out evaluation infrastructure
+# =====================================================================
+
+testthat::test_that(
+  "candidate and similarity evaluation support held-out enterprises",
+  {
+    source_data <-
+      tibble::tibble(
+        truth_firm_id =
+          c(
+            "T001",
+            "T002"
+          ),
+        employment_source_id =
+          c(
+            "E001",
+            "E002"
+          ),
+        business_id =
+          c(
+            NA_character_,
+            NA_character_
+          ),
+        enterprise_name =
+          c(
+            "Alpha GmbH",
+            "Beta AG"
+          ),
+        street =
+          c(
+            "Alphaweg 1",
+            "Betastrasse 2"
+          ),
+        postal_code =
+          c(
+            "12345",
+            "99999"
+          ),
+        city =
+          c(
+            "Berlin",
+            "Hamburg"
+          ),
+        legal_form =
+          c(
+            "GmbH",
+            "AG"
+          ),
+        nace_code =
+          c(
+            "G47",
+            "C10"
+          )
+      )
+
+    register_data <-
+      tibble::tibble(
+        truth_firm_id =
+          c(
+            "T001",
+            "T002"
+          ),
+        register_id =
+          c(
+            "R001",
+            "R002"
+          ),
+        business_id =
+          c(
+            "B001",
+            "B002"
+          ),
+        enterprise_name =
+          c(
+            "Alpha GmbH",
+            "Beta AG"
+          ),
+        street =
+          c(
+            "Alphaweg 1",
+            "Betastrasse 2"
+          ),
+        postal_code =
+          c(
+            "12345",
+            "99999"
+          ),
+        city =
+          c(
+            "Berlin",
+            "Hamburg"
+          ),
+        legal_form =
+          c(
+            "GmbH",
+            "AG"
+          ),
+        nace_code =
+          c(
+            "G47",
+            "C10"
+          )
+      )
+
+    enterprise_split <-
+      tibble::tibble(
+        truth_firm_id =
+          c(
+            "T001",
+            "T002"
+          ),
+        sample_role =
+          c(
+            "development",
+            "heldout"
+          )
+      )
+
+    similarity_weights <-
+      c(
+        name_similarity =
+          0.40,
+        street_similarity =
+          0.30,
+        city_similarity =
+          0.05,
+        postal_code_match =
+          0.10,
+        legal_form_match =
+          0.075,
+        nace_match =
+          0.075
+      )
+
+    candidate_result <-
+      evaluate_candidate_generation(
+        source_data =
+          source_data,
+        source_id_column =
+          "employment_source_id",
+        register_data =
+          register_data,
+        enterprise_split =
+          enterprise_split,
+        scenario_name =
+          "baseline",
+        source_name =
+          "employment",
+        sample_role =
+          "heldout"
+      )
+
+    similarity_result <-
+      build_similarity_benchmark_records(
+        source_data =
+          source_data,
+        source_id_column =
+          "employment_source_id",
+        register_data =
+          register_data,
+        enterprise_split =
+          enterprise_split,
+        scenario_name =
+          "baseline",
+        source_name =
+          "employment",
+        similarity_weights =
+          similarity_weights,
+        sample_role =
+          "heldout"
+      )
+
+    testthat::expect_equal(
+      nrow(
+        candidate_result
+      ),
+      1L
+    )
+
+    testthat::expect_identical(
+      candidate_result$truth_firm_id,
+      "T002"
+    )
+
+    testthat::expect_equal(
+      candidate_result$candidate_count,
+      1L
+    )
+
+    testthat::expect_true(
+      candidate_result$true_candidate_present
+    )
+
+    testthat::expect_equal(
+      nrow(
+        similarity_result
+      ),
+      1L
+    )
+
+    testthat::expect_identical(
+      similarity_result$truth_firm_id,
+      "T002"
+    )
+
+    testthat::expect_identical(
+      similarity_result$top_candidate_register_id,
+      "R002"
+    )
+
+    testthat::expect_true(
+      similarity_result$true_candidate_present
+    )
+
+    testthat::expect_true(
+      similarity_result$top_candidate_correct
+    )
+
+    testthat::expect_equal(
+      similarity_result$top_similarity_score,
+      1
     )
   }
 )

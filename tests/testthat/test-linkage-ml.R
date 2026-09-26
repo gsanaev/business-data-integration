@@ -679,3 +679,336 @@ testthat::test_that(
     )
   }
 )
+
+# =====================================================================
+# Stage 10A held-out infrastructure
+# =====================================================================
+
+testthat::test_that(
+  "ML candidate construction supports held-out enterprises",
+  {
+    source_data <-
+      tibble::tibble(
+        truth_firm_id =
+          c(
+            "T001",
+            "T002"
+          ),
+        employment_source_id =
+          c(
+            "E001",
+            "E002"
+          ),
+        business_id =
+          c(
+            NA_character_,
+            NA_character_
+          ),
+        enterprise_name =
+          c(
+            "Alpha GmbH",
+            "Beta AG"
+          ),
+        street =
+          c(
+            "Alphaweg 1",
+            "Betastrasse 2"
+          ),
+        postal_code =
+          c(
+            "12345",
+            "99999"
+          ),
+        city =
+          c(
+            "Berlin",
+            "Hamburg"
+          ),
+        legal_form =
+          c(
+            "GmbH",
+            "AG"
+          ),
+        nace_code =
+          c(
+            "G47",
+            "C10"
+          )
+      )
+
+    register_data <-
+      tibble::tibble(
+        truth_firm_id =
+          c(
+            "T001",
+            "T002"
+          ),
+        register_id =
+          c(
+            "R001",
+            "R002"
+          ),
+        business_id =
+          c(
+            "B001",
+            "B002"
+          ),
+        enterprise_name =
+          c(
+            "Alpha GmbH",
+            "Beta AG"
+          ),
+        street =
+          c(
+            "Alphaweg 1",
+            "Betastrasse 2"
+          ),
+        postal_code =
+          c(
+            "12345",
+            "99999"
+          ),
+        city =
+          c(
+            "Berlin",
+            "Hamburg"
+          ),
+        legal_form =
+          c(
+            "GmbH",
+            "AG"
+          ),
+        nace_code =
+          c(
+            "G47",
+            "C10"
+          )
+      )
+
+    enterprise_split <-
+      tibble::tibble(
+        truth_firm_id =
+          c(
+            "T001",
+            "T002"
+          ),
+        sample_role =
+          c(
+            "development",
+            "heldout"
+          )
+      )
+
+    result <-
+      build_ml_candidate_pairs(
+        source_data =
+          source_data,
+        source_id_column =
+          "employment_source_id",
+        register_data =
+          register_data,
+        enterprise_split =
+          enterprise_split,
+        scenario_name =
+          "baseline",
+        source_name =
+          "employment",
+        sample_role =
+          "heldout"
+      )
+
+    testthat::expect_true(
+      nrow(
+        result
+      ) > 0L
+    )
+
+    testthat::expect_true(
+      all(
+        result$truth_firm_id ==
+          "T002"
+      )
+    )
+
+    testthat::expect_equal(
+      sum(
+        result$is_true_candidate
+      ),
+      1L
+    )
+
+    testthat::expect_equal(
+      result$register_id[
+        result$is_true_candidate
+      ],
+      "R002"
+    )
+  }
+)
+
+
+testthat::test_that(
+  "ML candidate validation respects the requested sample role",
+  {
+    heldout_pairs <-
+      tibble::tibble(
+        scenario =
+          "baseline",
+        source =
+          "employment",
+        truth_firm_id =
+          "T002",
+        source_record_id =
+          "E002",
+        register_id =
+          "R002",
+        canonical_firm_id =
+          "C000002",
+        true_register_id =
+          "R002",
+        name_similarity =
+          1,
+        street_similarity =
+          1,
+        city_similarity =
+          1,
+        postal_code_match =
+          1,
+        legal_form_match =
+          1,
+        nace_match =
+          1,
+        is_true_candidate =
+          TRUE
+      )
+
+    development_pairs <-
+      heldout_pairs %>%
+      dplyr::mutate(
+        truth_firm_id =
+          "T001",
+        source_record_id =
+          "E001",
+        register_id =
+          "R001",
+        canonical_firm_id =
+          "C000001",
+        true_register_id =
+          "R001"
+      )
+
+    enterprise_split <-
+      tibble::tibble(
+        truth_firm_id =
+          c(
+            "T001",
+            "T002"
+          ),
+        sample_role =
+          c(
+            "development",
+            "heldout"
+          )
+      )
+
+    testthat::expect_no_error(
+      validate_ml_candidate_pairs(
+        heldout_pairs,
+        enterprise_split,
+        sample_role =
+          "heldout"
+      )
+    )
+
+    testthat::expect_error(
+      validate_ml_candidate_pairs(
+        development_pairs,
+        enterprise_split,
+        sample_role =
+          "heldout"
+      ),
+      "non-heldout"
+    )
+  }
+)
+
+
+testthat::test_that(
+  "RF record scoring supports data without CV folds",
+  {
+    candidate_pairs <-
+      tibble::tibble(
+        scenario =
+          rep(
+            "baseline",
+            3
+          ),
+        source =
+          rep(
+            "employment",
+            3
+          ),
+        truth_firm_id =
+          rep(
+            "T002",
+            3
+          ),
+        source_record_id =
+          rep(
+            "E002",
+            3
+          ),
+        register_id =
+          c(
+            "R001",
+            "R002",
+            "R003"
+          ),
+        is_true_candidate =
+          c(
+            FALSE,
+            TRUE,
+            FALSE
+          )
+      )
+
+    result <-
+      score_rf_candidate_records(
+        candidate_pairs,
+        c(
+          0.10,
+          0.90,
+          0.40
+        )
+      )
+
+    testthat::expect_true(
+      "cv_fold" %in%
+        names(
+          result
+        )
+    )
+
+    testthat::expect_true(
+      all(
+        is.na(
+          result$cv_fold
+        )
+      )
+    )
+
+    testthat::expect_true(
+      result$top_candidate_correct
+    )
+
+    testthat::expect_equal(
+      result$top_probability,
+      0.90
+    )
+
+    testthat::expect_equal(
+      result$probability_margin,
+      0.50
+    )
+  }
+)

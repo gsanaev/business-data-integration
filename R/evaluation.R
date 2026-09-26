@@ -372,8 +372,17 @@ evaluate_candidate_generation <- function(
   register_data,
   enterprise_split,
   scenario_name,
-  source_name
+  source_name,
+  sample_role = "development"
 ) {
+  sample_role <-
+    match.arg(
+      sample_role,
+      c(
+        "development",
+        "heldout"
+      )
+    )
   source_entities <-
     extract_calibration_source_entities(
       source_data,
@@ -382,10 +391,6 @@ evaluate_candidate_generation <- function(
     dplyr::left_join(
       enterprise_split,
       by = "truth_firm_id"
-    ) %>%
-    dplyr::filter(
-      .data$sample_role ==
-        "development"
     )
 
   if (
@@ -394,9 +399,16 @@ evaluate_candidate_generation <- function(
     )
   ) {
     stop(
-      "Development split could not be joined to all source enterprises."
+      "Enterprise split could not be joined to all source enterprises."
     )
   }
+
+  source_entities <-
+    source_entities %>%
+    dplyr::filter(
+      .data$sample_role ==
+        .env$sample_role
+    )
 
   register_entities <-
     prepare_calibration_register_entities(
@@ -441,7 +453,7 @@ evaluate_candidate_generation <- function(
     )
   ) {
     stop(
-      "True register identifiers are missing for unresolved development records."
+      "True register identifiers are missing for unresolved sampled records."
     )
   }
 
@@ -611,8 +623,17 @@ build_similarity_benchmark_records <- function(
   enterprise_split,
   scenario_name,
   source_name,
-  similarity_weights
+  similarity_weights,
+  sample_role = "development"
 ) {
+  sample_role <-
+    match.arg(
+      sample_role,
+      c(
+        "development",
+        "heldout"
+      )
+    )
   source_entities <-
     extract_calibration_source_entities(
       source_data,
@@ -621,10 +642,23 @@ build_similarity_benchmark_records <- function(
     dplyr::left_join(
       enterprise_split,
       by = "truth_firm_id"
-    ) %>%
+    )
+
+  if (
+    anyNA(
+      source_entities$sample_role
+    )
+  ) {
+    stop(
+      "Enterprise split could not be joined to all source enterprises."
+    )
+  }
+
+  source_entities <-
+    source_entities %>%
     dplyr::filter(
       .data$sample_role ==
-        "development"
+        .env$sample_role
     )
 
   register_entities <-
@@ -670,7 +704,7 @@ build_similarity_benchmark_records <- function(
     )
   ) {
     stop(
-      "True register identifiers are missing for unresolved development records."
+      "True register identifiers are missing for unresolved sampled records."
     )
   }
 

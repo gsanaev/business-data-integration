@@ -22,8 +22,18 @@ build_ml_candidate_pairs <- function(
   register_data,
   enterprise_split,
   scenario_name,
-  source_name
+  source_name,
+  sample_role = "development"
 ) {
+  sample_role <-
+    match.arg(
+      sample_role,
+      c(
+        "development",
+        "heldout"
+      )
+    )
+
   source_entities <-
     source_data %>%
     dplyr::distinct(
@@ -57,7 +67,7 @@ build_ml_candidate_pairs <- function(
     source_entities %>%
     dplyr::filter(
       .data$sample_role ==
-        "development"
+        .env$sample_role
     )
 
   register_entities <-
@@ -122,7 +132,7 @@ build_ml_candidate_pairs <- function(
     )
   ) {
     stop(
-      "True register identifiers are missing for unresolved development records."
+      "True register identifiers are missing for unresolved sampled records."
     )
   }
 
@@ -236,8 +246,18 @@ build_ml_candidate_pairs <- function(
 
 validate_ml_candidate_pairs <- function(
   candidate_pairs,
-  enterprise_split = NULL
+  enterprise_split = NULL,
+  sample_role = "development"
 ) {
+  sample_role <-
+    match.arg(
+      sample_role,
+      c(
+        "development",
+        "heldout"
+      )
+    )
+
   feature_columns <-
     ml_linkage_feature_columns()
 
@@ -403,31 +423,34 @@ validate_ml_candidate_pairs <- function(
       enterprise_split
     )
   ) {
-    development_ids <-
+    sample_ids <-
       enterprise_split %>%
       dplyr::filter(
         .data$sample_role ==
-          "development"
+          .env$sample_role
       ) %>%
       dplyr::pull(
         .data$truth_firm_id
       )
 
-    nondevelopment_ids <-
+    out_of_sample_ids <-
       setdiff(
         unique(
           candidate_pairs$truth_firm_id
         ),
-        development_ids
+        sample_ids
       )
 
     if (
       length(
-        nondevelopment_ids
+        out_of_sample_ids
       ) > 0L
     ) {
       stop(
-        "ML candidate pairs contain non-development enterprises."
+        sprintf(
+          "ML candidate pairs contain non-%s enterprises.",
+          sample_role
+        )
       )
     }
   }
@@ -1020,6 +1043,20 @@ score_rf_candidate_records <- function(
     stop(
       "RF match probabilities must be finite values in [0, 1]."
     )
+  }
+
+  if (
+    !"cv_fold" %in%
+      names(
+        candidate_pairs
+      )
+  ) {
+    candidate_pairs <-
+      candidate_pairs %>%
+      dplyr::mutate(
+        cv_fold =
+          NA_integer_
+      )
   }
 
   candidate_pairs %>%
