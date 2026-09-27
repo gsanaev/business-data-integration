@@ -43,7 +43,37 @@ source(
     "..",
     "..",
     "R",
-    "linkage_ml.R"
+    "linkage_ml_candidates.R"
+  ),
+  local = TRUE
+)
+
+source(
+  testthat::test_path(
+    "..",
+    "..",
+    "R",
+    "linkage_ml_cv.R"
+  ),
+  local = TRUE
+)
+
+source(
+  testthat::test_path(
+    "..",
+    "..",
+    "R",
+    "linkage_ml_rf.R"
+  ),
+  local = TRUE
+)
+
+source(
+  testthat::test_path(
+    "..",
+    "..",
+    "R",
+    "linkage_ml_tuning.R"
   ),
   local = TRUE
 )
