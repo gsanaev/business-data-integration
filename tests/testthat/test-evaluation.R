@@ -44,7 +44,34 @@ source(
     "..",
     "..",
     "R",
-    "evaluation.R"
+    "evaluation_split.R"
+  )
+)
+
+source(
+  testthat::test_path(
+    "..",
+    "..",
+    "R",
+    "evaluation_benchmark.R"
+  )
+)
+
+source(
+  testthat::test_path(
+    "..",
+    "..",
+    "R",
+    "evaluation_policy.R"
+  )
+)
+
+source(
+  testthat::test_path(
+    "..",
+    "..",
+    "R",
+    "evaluation_heldout.R"
   )
 )
 

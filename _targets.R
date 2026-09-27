@@ -30,7 +30,10 @@ tar_source(
     "R/enterprise_year.R",
     "R/indicators.R",
     "R/downstream_evaluation.R",
-    "R/evaluation.R",
+    "R/evaluation_split.R",
+    "R/evaluation_benchmark.R",
+    "R/evaluation_policy.R",
+    "R/evaluation_heldout.R",
     "R/reporting.R"
   ),
   change_directory = FALSE
