@@ -160,3 +160,153 @@ extract_source_entities <- function(
     ) %>%
     distinct()
 }
+
+# =====================================================================
+# Shared sampled linkage preparation
+# =====================================================================
+
+prepare_sampled_linkage_entities <- function(
+  source_data,
+  source_id_column,
+  register_data,
+  enterprise_split,
+  sample_role = "development"
+) {
+  sample_role <-
+    match.arg(
+      sample_role,
+      c(
+        "development",
+        "heldout"
+      )
+    )
+
+  source_entities <-
+    source_data %>%
+    dplyr::distinct(
+      .data$truth_firm_id,
+      source_record_id =
+        .data[[source_id_column]],
+      .data$business_id,
+      .data$enterprise_name,
+      .data$street,
+      .data$postal_code,
+      .data$city,
+      .data$legal_form,
+      .data$nace_code
+    ) %>%
+    dplyr::left_join(
+      enterprise_split,
+      by = "truth_firm_id"
+    )
+
+  if (
+    anyNA(
+      source_entities$sample_role
+    )
+  ) {
+    stop(
+      "Enterprise split could not be joined to all source enterprises."
+    )
+  }
+
+  source_entities <-
+    source_entities %>%
+    dplyr::filter(
+      .data$sample_role ==
+        .env$sample_role
+    )
+
+  register_entities <-
+    register_data %>%
+    dplyr::distinct(
+      .data$truth_firm_id,
+      .data$register_id,
+      .data$business_id,
+      .data$enterprise_name,
+      .data$street,
+      .data$postal_code,
+      .data$city,
+      .data$legal_form,
+      .data$nace_code
+    ) %>%
+    dplyr::arrange(
+      .data$register_id
+    ) %>%
+    dplyr::mutate(
+      canonical_firm_id =
+        sprintf(
+          "C%06d",
+          dplyr::row_number()
+        )
+    )
+
+  register_lookup <-
+    register_entities %>%
+    dplyr::select(
+      canonical_firm_id,
+      register_id,
+      business_id
+    )
+
+  truth_register_map <-
+    register_entities %>%
+    dplyr::select(
+      truth_firm_id,
+      true_register_id =
+        register_id
+    )
+
+  unresolved <-
+    source_entities %>%
+    dplyr::left_join(
+      register_lookup,
+      by = "business_id"
+    ) %>%
+    dplyr::filter(
+      is.na(
+        .data$canonical_firm_id
+      )
+    ) %>%
+    dplyr::left_join(
+      truth_register_map,
+      by = "truth_firm_id"
+    )
+
+  if (
+    anyNA(
+      unresolved$true_register_id
+    )
+  ) {
+    stop(
+      "True register identifiers are missing for unresolved sampled records."
+    )
+  }
+
+  list(
+    unresolved = unresolved,
+    register_entities = register_entities
+  )
+}
+
+
+build_unresolved_linkage_candidates <- function(
+  unresolved,
+  register_entities
+) {
+  source_for_matching <-
+    prepare_source_linkage_records(
+      unresolved,
+      "source_record_id"
+    )
+
+  register_for_matching <-
+    prepare_register_linkage_records(
+      register_entities
+    )
+
+  generate_linkage_candidates(
+    source_for_matching,
+    register_for_matching
+  )
+}
