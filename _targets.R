@@ -29,6 +29,7 @@ tar_source(
     "R/coherence.R",
     "R/enterprise_year.R",
     "R/indicators.R",
+    "R/downstream_evaluation.R",
     "R/evaluation.R",
     "R/reporting.R"
   ),
@@ -1165,6 +1166,85 @@ list(
       heldout_complete_linkage_records,
       group_columns =
         "source"
+    )
+  ),
+
+  tar_target(
+    heldout_downstream_scenario_results,
+    {
+      scenario_names <-
+        c(
+          "baseline",
+          "moderate",
+          "difficult"
+        )
+
+      validation_config <-
+        project_config$processing$validation
+
+      results <-
+        lapply(
+          scenario_names,
+          function(
+            scenario_name
+          ) {
+            run_downstream_scenario_evaluation(
+              operational_sources =
+                scenario_operational_sources[[scenario_name]],
+              linkage_records =
+                heldout_complete_linkage_records,
+              validation_config =
+                validation_config,
+              scenario_name =
+                scenario_name
+            )
+          }
+        )
+
+      names(results) <-
+        scenario_names
+
+      results
+    }
+  ),
+
+  tar_target(
+    heldout_downstream_error_records,
+    dplyr::bind_rows(
+      lapply(
+        heldout_downstream_scenario_results,
+        `[[`,
+        "error_records"
+      )
+    )
+  ),
+
+  tar_target(
+    heldout_downstream_error_summary,
+    summarise_downstream_indicator_errors(
+      heldout_downstream_error_records
+    )
+  ),
+
+  tar_target(
+    heldout_downstream_collision_records,
+    dplyr::bind_rows(
+      lapply(
+        heldout_downstream_scenario_results,
+        `[[`,
+        "collision_records"
+      )
+    )
+  ),
+
+  tar_target(
+    heldout_downstream_coverage,
+    dplyr::bind_rows(
+      lapply(
+        heldout_downstream_scenario_results,
+        `[[`,
+        "coverage"
+      )
     )
   ),
 
