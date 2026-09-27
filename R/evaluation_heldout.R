@@ -685,19 +685,14 @@ validate_unresolved_evaluation_coverage <- function(
 }
 
 
-build_complete_linkage_evaluation_records <- function(
+prepare_complete_linkage_base_records <- function(
   source_data,
   source_id_column,
   register_data,
   enterprise_split,
   scenario_name,
   source_name,
-  similarity_records,
-  similarity_policy,
-  rf_records,
-  rf_assignments,
-  rf_policy,
-  sample_role = "heldout"
+  sample_role
 ) {
   required_source_columns <-
     c(
@@ -865,6 +860,35 @@ build_complete_linkage_evaluation_records <- function(
       "True register identifiers are missing from complete linkage evaluation."
     )
   }
+
+  base_records
+}
+
+
+build_complete_linkage_evaluation_records <- function(
+  source_data,
+  source_id_column,
+  register_data,
+  enterprise_split,
+  scenario_name,
+  source_name,
+  similarity_records,
+  similarity_policy,
+  rf_records,
+  rf_assignments,
+  rf_policy,
+  sample_role = "heldout"
+) {
+  base_records <-
+    prepare_complete_linkage_base_records(
+      source_data = source_data,
+      source_id_column = source_id_column,
+      register_data = register_data,
+      enterprise_split = enterprise_split,
+      scenario_name = scenario_name,
+      source_name = source_name,
+      sample_role = sample_role
+    )
 
   unresolved <-
     base_records %>%
