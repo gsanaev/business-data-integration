@@ -122,36 +122,10 @@ build_ml_candidate_pairs <- function(
 # ML dataset validation and grouped cross-validation
 # =====================================================================
 
-validate_ml_candidate_pairs <- function(
+validate_ml_candidate_pair_structure <- function(
   candidate_pairs,
-  enterprise_split = NULL,
-  sample_role = "development"
+  required_columns
 ) {
-  sample_role <-
-    match.arg(
-      sample_role,
-      c(
-        "development",
-        "heldout"
-      )
-    )
-
-  feature_columns <-
-    ml_linkage_feature_columns()
-
-  required_columns <-
-    c(
-      "scenario",
-      "source",
-      "truth_firm_id",
-      "source_record_id",
-      "register_id",
-      "canonical_firm_id",
-      "true_register_id",
-      feature_columns,
-      "is_true_candidate"
-    )
-
   missing_columns <-
     setdiff(
       required_columns,
@@ -196,6 +170,14 @@ validate_ml_candidate_pairs <- function(
     )
   }
 
+  invisible(TRUE)
+}
+
+
+validate_ml_candidate_feature_values <- function(
+  candidate_pairs,
+  feature_columns
+) {
   feature_matrix <-
     as.matrix(
       candidate_pairs[
@@ -236,6 +218,13 @@ validate_ml_candidate_pairs <- function(
     )
   }
 
+  invisible(TRUE)
+}
+
+
+validate_ml_candidate_pair_integrity <- function(
+  candidate_pairs
+) {
   if (
     !is.logical(
       candidate_pairs$is_true_candidate
@@ -296,42 +285,109 @@ validate_ml_candidate_pairs <- function(
     )
   }
 
+  invisible(TRUE)
+}
+
+
+validate_ml_candidate_sample_membership <- function(
+  candidate_pairs,
+  enterprise_split,
+  sample_role
+) {
   if (
-    !is.null(
+    is.null(
       enterprise_split
     )
   ) {
-    sample_ids <-
-      enterprise_split %>%
-      dplyr::filter(
-        .data$sample_role ==
-          .env$sample_role
-      ) %>%
-      dplyr::pull(
-        .data$truth_firm_id
-      )
-
-    out_of_sample_ids <-
-      setdiff(
-        unique(
-          candidate_pairs$truth_firm_id
-        ),
-        sample_ids
-      )
-
-    if (
-      length(
-        out_of_sample_ids
-      ) > 0L
-    ) {
-      stop(
-        sprintf(
-          "ML candidate pairs contain non-%s enterprises.",
-          sample_role
-        )
-      )
-    }
+    return(
+      invisible(TRUE)
+    )
   }
+
+  sample_ids <-
+    enterprise_split %>%
+    dplyr::filter(
+      .data$sample_role ==
+        .env$sample_role
+    ) %>%
+    dplyr::pull(
+      .data$truth_firm_id
+    )
+
+  out_of_sample_ids <-
+    setdiff(
+      unique(
+        candidate_pairs$truth_firm_id
+      ),
+      sample_ids
+    )
+
+  if (
+    length(
+      out_of_sample_ids
+    ) > 0L
+  ) {
+    stop(
+      sprintf(
+        "ML candidate pairs contain non-%s enterprises.",
+        sample_role
+      )
+    )
+  }
+
+  invisible(TRUE)
+}
+
+
+validate_ml_candidate_pairs <- function(
+  candidate_pairs,
+  enterprise_split = NULL,
+  sample_role = "development"
+) {
+  sample_role <-
+    match.arg(
+      sample_role,
+      c(
+        "development",
+        "heldout"
+      )
+    )
+
+  feature_columns <-
+    ml_linkage_feature_columns()
+
+  required_columns <-
+    c(
+      "scenario",
+      "source",
+      "truth_firm_id",
+      "source_record_id",
+      "register_id",
+      "canonical_firm_id",
+      "true_register_id",
+      feature_columns,
+      "is_true_candidate"
+    )
+
+  validate_ml_candidate_pair_structure(
+    candidate_pairs,
+    required_columns
+  )
+
+  validate_ml_candidate_feature_values(
+    candidate_pairs,
+    feature_columns
+  )
+
+  validate_ml_candidate_pair_integrity(
+    candidate_pairs
+  )
+
+  validate_ml_candidate_sample_membership(
+    candidate_pairs,
+    enterprise_split,
+    sample_role
+  )
 
   invisible(
     TRUE
