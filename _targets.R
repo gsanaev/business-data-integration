@@ -7,7 +7,8 @@ tar_option_set(
     "readr",
     "janitor",
     "lubridate",
-    "ggplot2"
+    "ggplot2",
+    "ranger"
   )
 )
 
