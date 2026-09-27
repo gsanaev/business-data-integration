@@ -135,13 +135,11 @@ prepare_calibration_register_entities <- function(
 }
 
 
-evaluate_candidate_generation <- function(
+prepare_linkage_evaluation_sample <- function(
   source_data,
   source_id_column,
   register_data,
   enterprise_split,
-  scenario_name,
-  source_name,
   sample_role = "development"
 ) {
   sample_role <-
@@ -152,6 +150,7 @@ evaluate_candidate_generation <- function(
         "heldout"
       )
     )
+
   source_entities <-
     extract_calibration_source_entities(
       source_data,
@@ -162,11 +161,7 @@ evaluate_candidate_generation <- function(
       by = "truth_firm_id"
     )
 
-  if (
-    anyNA(
-      source_entities$sample_role
-    )
-  ) {
+  if (anyNA(source_entities$sample_role)) {
     stop(
       "Enterprise split could not be joined to all source enterprises."
     )
@@ -216,32 +211,23 @@ evaluate_candidate_generation <- function(
       by = "truth_firm_id"
     )
 
-  if (
-    anyNA(
-      unresolved$true_register_id
-    )
-  ) {
+  if (anyNA(unresolved$true_register_id)) {
     stop(
       "True register identifiers are missing for unresolved sampled records."
     )
   }
 
-  if (
-    nrow(unresolved) == 0L
-  ) {
-    return(
-      tibble::tibble(
-        scenario = character(),
-        source = character(),
-        truth_firm_id = character(),
-        source_record_id = character(),
-        business_id = character(),
-        candidate_count = integer(),
-        true_candidate_present = logical()
-      )
-    )
-  }
+  list(
+    unresolved = unresolved,
+    register_entities = register_entities
+  )
+}
 
+
+build_evaluation_candidate_pairs <- function(
+  unresolved,
+  register_entities
+) {
   source_for_matching <-
     unresolved %>%
     dplyr::transmute(
@@ -268,10 +254,52 @@ evaluate_candidate_generation <- function(
       register_entities
     )
 
+  generate_linkage_candidates(
+    source_for_matching,
+    register_for_matching
+  )
+}
+
+
+evaluate_candidate_generation <- function(
+  source_data,
+  source_id_column,
+  register_data,
+  enterprise_split,
+  scenario_name,
+  source_name,
+  sample_role = "development"
+) {
+  prepared <-
+    prepare_linkage_evaluation_sample(
+      source_data = source_data,
+      source_id_column = source_id_column,
+      register_data = register_data,
+      enterprise_split = enterprise_split,
+      sample_role = sample_role
+    )
+
+  unresolved <-
+    prepared$unresolved
+
+  if (nrow(unresolved) == 0L) {
+    return(
+      tibble::tibble(
+        scenario = character(),
+        source = character(),
+        truth_firm_id = character(),
+        source_record_id = character(),
+        business_id = character(),
+        candidate_count = integer(),
+        true_candidate_present = logical()
+      )
+    )
+  }
+
   candidates <-
-    generate_linkage_candidates(
-      source_for_matching,
-      register_for_matching
+    build_evaluation_candidate_pairs(
+      unresolved,
+      prepared$register_entities
     )
 
   candidate_diagnostics <-
@@ -395,91 +423,19 @@ build_similarity_benchmark_records <- function(
   similarity_weights,
   sample_role = "development"
 ) {
-  sample_role <-
-    match.arg(
-      sample_role,
-      c(
-        "development",
-        "heldout"
-      )
-    )
-  source_entities <-
-    extract_calibration_source_entities(
-      source_data,
-      source_id_column
-    ) %>%
-    dplyr::left_join(
-      enterprise_split,
-      by = "truth_firm_id"
-    )
-
-  if (
-    anyNA(
-      source_entities$sample_role
-    )
-  ) {
-    stop(
-      "Enterprise split could not be joined to all source enterprises."
-    )
-  }
-
-  source_entities <-
-    source_entities %>%
-    dplyr::filter(
-      .data$sample_role ==
-        .env$sample_role
-    )
-
-  register_entities <-
-    prepare_calibration_register_entities(
-      register_data
-    )
-
-  register_lookup <-
-    register_entities %>%
-    dplyr::select(
-      canonical_firm_id,
-      register_id,
-      business_id
-    )
-
-  truth_register_map <-
-    register_entities %>%
-    dplyr::select(
-      truth_firm_id,
-      true_register_id =
-        register_id
+  prepared <-
+    prepare_linkage_evaluation_sample(
+      source_data = source_data,
+      source_id_column = source_id_column,
+      register_data = register_data,
+      enterprise_split = enterprise_split,
+      sample_role = sample_role
     )
 
   unresolved <-
-    source_entities %>%
-    dplyr::left_join(
-      register_lookup,
-      by = "business_id"
-    ) %>%
-    dplyr::filter(
-      is.na(
-        .data$canonical_firm_id
-      )
-    ) %>%
-    dplyr::left_join(
-      truth_register_map,
-      by = "truth_firm_id"
-    )
+    prepared$unresolved
 
-  if (
-    anyNA(
-      unresolved$true_register_id
-    )
-  ) {
-    stop(
-      "True register identifiers are missing for unresolved sampled records."
-    )
-  }
-
-  if (
-    nrow(unresolved) == 0L
-  ) {
+  if (nrow(unresolved) == 0L) {
     return(
       tibble::tibble(
         scenario = character(),
@@ -503,36 +459,10 @@ build_similarity_benchmark_records <- function(
     )
   }
 
-  source_for_matching <-
-    unresolved %>%
-    dplyr::transmute(
-      source_record_id =
-        .data$source_record_id,
-      enterprise_name_source =
-        .data$enterprise_name,
-      street_source =
-        .data$street,
-      postal_code_source =
-        as.character(
-          .data$postal_code
-        ),
-      city_source =
-        .data$city,
-      legal_form_source =
-        .data$legal_form,
-      nace_code_source =
-        .data$nace_code
-    )
-
-  register_for_matching <-
-    prepare_register_linkage_records(
-      register_entities
-    )
-
   ranked_candidates <-
-    generate_linkage_candidates(
-      source_for_matching,
-      register_for_matching
+    build_evaluation_candidate_pairs(
+      unresolved,
+      prepared$register_entities
     ) %>%
     add_linkage_features() %>%
     score_and_rank_similarity_candidates(
@@ -572,9 +502,7 @@ build_similarity_benchmark_records <- function(
             .data$is_true_candidate
           )
 
-        if (
-          length(index) > 0L
-        ) {
+        if (length(index) > 0L) {
           .data$candidate_rank[
             index[1]
           ]
@@ -589,9 +517,7 @@ build_similarity_benchmark_records <- function(
             .data$is_true_candidate
           )
 
-        if (
-          length(index) > 0L
-        ) {
+        if (length(index) > 0L) {
           .data$similarity_score[
             index[1]
           ]
@@ -616,9 +542,7 @@ build_similarity_benchmark_records <- function(
         ),
 
       second_similarity_score =
-        if (
-          dplyr::n() >= 2L
-        ) {
+        if (dplyr::n() >= 2L) {
           dplyr::nth(
             .data$similarity_score,
             2
