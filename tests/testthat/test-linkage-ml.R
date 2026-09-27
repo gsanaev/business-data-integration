@@ -678,6 +678,311 @@ testthat::test_that(
 
 
 testthat::test_that(
+  "grouped CV creation rejects invalid configuration",
+  {
+    candidate_pairs <-
+      tibble::tibble(
+        truth_firm_id =
+          sprintf(
+            "T%03d",
+            1:5
+          )
+      )
+
+    testthat::expect_error(
+      create_grouped_cv_folds(
+        candidate_pairs,
+        n_folds =
+          1L
+      ),
+      "n_folds must be an integer of at least 2"
+    )
+
+    testthat::expect_error(
+      create_grouped_cv_folds(
+        candidate_pairs,
+        n_folds =
+          2.5
+      ),
+      "n_folds must be an integer of at least 2"
+    )
+
+    testthat::expect_error(
+      create_grouped_cv_folds(
+        candidate_pairs,
+        seed =
+          Inf
+      ),
+      "seed must be a finite numeric scalar"
+    )
+
+    testthat::expect_error(
+      create_grouped_cv_folds(
+        candidate_pairs[
+          1:2,
+          ,
+          drop = FALSE
+        ],
+        n_folds =
+          3L
+      ),
+      "Number of enterprise groups must be at least n_folds"
+    )
+  }
+)
+
+
+testthat::test_that(
+  "grouped CV creation preserves the caller RNG state",
+  {
+    candidate_pairs <-
+      tibble::tibble(
+        truth_firm_id =
+          sprintf(
+            "T%03d",
+            1:10
+          )
+      )
+
+    set.seed(
+      4242L
+    )
+
+    seed_before <-
+      .Random.seed
+
+    create_grouped_cv_folds(
+      candidate_pairs,
+      n_folds =
+        5L,
+      seed =
+        202605L
+    )
+
+    testthat::expect_identical(
+      .Random.seed,
+      seed_before
+    )
+  }
+)
+
+
+testthat::test_that(
+  "CV fold attachment rejects incomplete fold maps",
+  {
+    candidate_pairs <-
+      tibble::tibble(
+        truth_firm_id =
+          c(
+            "T001",
+            "T002"
+          )
+      )
+
+    fold_map <-
+      tibble::tibble(
+        truth_firm_id =
+          "T001",
+        cv_fold =
+          1L
+      )
+
+    testthat::expect_error(
+      attach_grouped_cv_folds(
+        candidate_pairs,
+        fold_map
+      ),
+      "CV fold assignment is missing for one or more candidate pairs"
+    )
+  }
+)
+
+
+testthat::test_that(
+  "grouped CV validation rejects invalid assignments",
+  {
+    spanning_enterprise <-
+      tibble::tibble(
+        truth_firm_id =
+          c(
+            "T001",
+            "T001",
+            "T002"
+          ),
+        cv_fold =
+          c(
+            1L,
+            2L,
+            2L
+          )
+      )
+
+    testthat::expect_error(
+      validate_grouped_cv_assignment(
+        spanning_enterprise,
+        n_folds =
+          2L
+      ),
+      "At least one enterprise spans multiple CV folds"
+    )
+
+    incomplete_fold_set <-
+      tibble::tibble(
+        truth_firm_id =
+          c(
+            "T001",
+            "T002"
+          ),
+        cv_fold =
+          c(
+            1L,
+            1L
+          )
+      )
+
+    testthat::expect_error(
+      validate_grouped_cv_assignment(
+        incomplete_fold_set,
+        n_folds =
+          2L
+      ),
+      "Observed CV folds do not match the expected fold set"
+    )
+
+    unbalanced_assignment <-
+      tibble::tibble(
+        truth_firm_id =
+          c(
+            "T001",
+            "T002",
+            "T003",
+            "T004",
+            "T005"
+          ),
+        cv_fold =
+          c(
+            1L,
+            1L,
+            1L,
+            1L,
+            2L
+          )
+      )
+
+    testthat::expect_error(
+      validate_grouped_cv_assignment(
+        unbalanced_assignment,
+        n_folds =
+          2L
+      ),
+      "Enterprise groups are not balanced across CV folds"
+    )
+  }
+)
+
+
+testthat::test_that(
+  "CV fold summary reports enterprise and candidate composition",
+  {
+    candidate_pairs_cv <-
+      tibble::tibble(
+        scenario =
+          c(
+            "baseline",
+            "baseline",
+            "baseline",
+            "moderate"
+          ),
+        source =
+          c(
+            "employment",
+            "employment",
+            "employment",
+            "turnover"
+          ),
+        source_record_id =
+          c(
+            "E001",
+            "E001",
+            "E002",
+            "U001"
+          ),
+        truth_firm_id =
+          c(
+            "T001",
+            "T001",
+            "T002",
+            "T003"
+          ),
+        cv_fold =
+          c(
+            1L,
+            1L,
+            1L,
+            2L
+          ),
+        is_true_candidate =
+          c(
+            TRUE,
+            FALSE,
+            TRUE,
+            FALSE
+          )
+      )
+
+    result <-
+      summarise_ml_cv_folds(
+        candidate_pairs_cv
+      )
+
+    expected <-
+      tibble::tibble(
+        cv_fold =
+          c(
+            1L,
+            2L
+          ),
+        enterprises =
+          c(
+            2L,
+            1L
+          ),
+        source_records =
+          c(
+            2L,
+            1L
+          ),
+        candidate_pairs =
+          c(
+            3L,
+            1L
+          ),
+        positive_pairs =
+          c(
+            2L,
+            0L
+          ),
+        negative_pairs =
+          c(
+            1L,
+            1L
+          ),
+        positive_share =
+          c(
+            2 / 3,
+            0
+          )
+      )
+
+    testthat::expect_equal(
+      result,
+      expected
+    )
+  }
+)
+
+
+testthat::test_that(
   "RF tuning grid is deliberately bounded",
   {
     grid <-
