@@ -205,25 +205,3 @@ validate_enterprise_year <- function(
 
   invisible(TRUE)
 }
-
-
-summarise_enterprise_year_coverage <- function(
-  enterprise_year
-) {
-  enterprise_year %>%
-    group_by(year) %>%
-    summarise(
-      enterprises = n(),
-
-      complete_turnover =
-        sum(complete_turnover),
-
-      complete_employment =
-        sum(complete_employment),
-
-      complete_both =
-        sum(complete_annual_measures),
-
-      .groups = "drop"
-    )
-}
