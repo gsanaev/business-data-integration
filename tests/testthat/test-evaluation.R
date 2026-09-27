@@ -1561,6 +1561,43 @@ testthat::test_that(
           0.05
       )
 
+    register_data <-
+      dplyr::bind_rows(
+        register_data,
+        tibble::tibble(
+          truth_firm_id =
+            "F005",
+          register_id =
+            "R005",
+          business_id =
+            "B005"
+        )
+      )
+
+    source_data <-
+      dplyr::bind_rows(
+        source_data,
+        tibble::tibble(
+          truth_firm_id =
+            "F005",
+          source_id =
+            "S005",
+          business_id =
+            "B005"
+        )
+      )
+
+    enterprise_split <-
+      dplyr::bind_rows(
+        enterprise_split,
+        tibble::tibble(
+          truth_firm_id =
+            "F005",
+          sample_role =
+            "development"
+        )
+      )
+
     result <-
       build_complete_linkage_evaluation_records(
         source_data =

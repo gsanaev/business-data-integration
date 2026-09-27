@@ -2159,7 +2159,7 @@ build_complete_linkage_evaluation_records <- function(
       enterprise_split %>%
         dplyr::filter(
           .data$sample_role ==
-            sample_role
+            .env$sample_role
         ),
       by =
         "truth_firm_id"
