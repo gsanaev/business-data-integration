@@ -603,6 +603,54 @@ build_level2_evaluation_records <- function(
 }
 
 
+build_level1_evaluation_records <- function(
+  base_records,
+  method_name
+) {
+  base_records %>%
+    dplyr::filter(
+      .data$level1_resolved
+    ) %>%
+    dplyr::transmute(
+      scenario,
+      source,
+      truth_firm_id,
+      source_record_id,
+      business_id,
+      true_register_id,
+      true_canonical_firm_id,
+      method =
+        method_name,
+      decision_stage =
+        "level1",
+      decision_status =
+        "auto_link",
+      linkage_method =
+        "business_id_exact",
+      identifier_issue,
+      candidate_count =
+        NA_integer_,
+      proposed_register_id =
+        .data$level1_register_id,
+      proposed_canonical_firm_id =
+        .data$level1_canonical_firm_id,
+      assigned_register_id =
+        .data$level1_register_id,
+      assigned_canonical_firm_id =
+        .data$level1_canonical_firm_id,
+      top_score =
+        NA_real_,
+      margin =
+        NA_real_,
+      automatic_link =
+        TRUE,
+      assignment_correct =
+        .data$level1_register_id ==
+          .data$true_register_id
+    )
+}
+
+
 build_complete_linkage_evaluation_records <- function(
   source_data,
   source_id_column,
@@ -900,53 +948,6 @@ build_complete_linkage_evaluation_records <- function(
     )
   }
 
-  build_level1_records <-
-    function(
-      method_name
-    ) {
-      base_records %>%
-        dplyr::filter(
-          .data$level1_resolved
-        ) %>%
-        dplyr::transmute(
-          scenario,
-          source,
-          truth_firm_id,
-          source_record_id,
-          business_id,
-          true_register_id,
-          true_canonical_firm_id,
-          method =
-            method_name,
-          decision_stage =
-            "level1",
-          decision_status =
-            "auto_link",
-          linkage_method =
-            "business_id_exact",
-          identifier_issue,
-          candidate_count =
-            NA_integer_,
-          proposed_register_id =
-            .data$level1_register_id,
-          proposed_canonical_firm_id =
-            .data$level1_canonical_firm_id,
-          assigned_register_id =
-            .data$level1_register_id,
-          assigned_canonical_firm_id =
-            .data$level1_canonical_firm_id,
-          top_score =
-            NA_real_,
-          margin =
-            NA_real_,
-          automatic_link =
-            TRUE,
-          assignment_correct =
-            .data$level1_register_id ==
-              .data$true_register_id
-        )
-    }
-
   similarity_threshold <-
     similarity_policy$score_threshold[[1]]
 
@@ -1034,11 +1035,13 @@ build_complete_linkage_evaluation_records <- function(
 
   result <-
     dplyr::bind_rows(
-      build_level1_records(
+      build_level1_evaluation_records(
+        base_records,
         "weighted_similarity"
       ),
       similarity_level2,
-      build_level1_records(
+      build_level1_evaluation_records(
+        base_records,
         "random_forest"
       ),
       rf_level2
