@@ -2,6 +2,224 @@
 # Random Forest cross-validation and tuning
 # =====================================================================
 
+evaluate_rf_cv_fold <- function(
+  candidate_pairs_cv,
+  config_id,
+  fold_id,
+  mtry,
+  min_node_size,
+  num_trees,
+  seed,
+  num_threads
+) {
+  training_pairs <-
+    candidate_pairs_cv %>%
+    dplyr::filter(
+      .data$cv_fold !=
+        fold_id
+    )
+
+  validation_pairs <-
+    candidate_pairs_cv %>%
+    dplyr::filter(
+      .data$cv_fold ==
+        fold_id
+    )
+
+  fitted <-
+    fit_rf_candidate_model(
+      training_pairs =
+        training_pairs,
+      mtry =
+        mtry,
+      min_node_size =
+        min_node_size,
+      num_trees =
+        num_trees,
+      seed =
+        seed +
+          as.integer(
+            fold_id
+          ),
+      num_threads =
+        num_threads
+    )
+
+  probabilities <-
+    predict_rf_match_probability(
+      fitted$model,
+      validation_pairs,
+      num_threads =
+        num_threads
+    )
+
+  record_metrics <-
+    score_rf_candidate_records(
+      validation_pairs,
+      probabilities
+    ) %>%
+    dplyr::mutate(
+      config_id =
+        config_id,
+      mtry =
+        as.integer(
+          mtry
+        ),
+      min_node_size =
+        as.integer(
+          min_node_size
+        ),
+      num_trees =
+        as.integer(
+          num_trees
+        ),
+      .before =
+        "scenario"
+    )
+
+  weight_summary <-
+    tibble::tibble(
+      config_id =
+        config_id,
+      cv_fold =
+        fold_id,
+      positive_class_weight =
+        unname(
+          fitted$class_weights[
+            "match"
+          ]
+        )
+    )
+
+  rm(
+    fitted
+  )
+
+  gc(
+    verbose =
+      FALSE
+  )
+
+  list(
+    record_metrics =
+      record_metrics,
+    weight_summary =
+      weight_summary
+  )
+}
+
+
+summarise_rf_cv_configuration <- function(
+  records,
+  weights
+) {
+  overall <-
+    records %>%
+    dplyr::summarise(
+      config_id =
+        dplyr::first(
+          .data$config_id
+        ),
+      mtry =
+        dplyr::first(
+          .data$mtry
+        ),
+      min_node_size =
+        dplyr::first(
+          .data$min_node_size
+        ),
+      num_trees =
+        dplyr::first(
+          .data$num_trees
+        ),
+      source_records =
+        dplyr::n(),
+      true_candidate_present =
+        sum(
+          .data$true_candidate_present
+        ),
+      top1_correct =
+        sum(
+          .data$top_candidate_correct
+        ),
+      top1_accuracy =
+        mean(
+          .data$top_candidate_correct
+        ),
+      mean_reciprocal_rank =
+        mean(
+          .data$reciprocal_rank
+        )
+    ) %>%
+    dplyr::left_join(
+      weights %>%
+        dplyr::summarise(
+          config_id =
+            dplyr::first(
+              .data$config_id
+            ),
+          mean_positive_class_weight =
+            mean(
+              .data$positive_class_weight
+            ),
+          min_positive_class_weight =
+            min(
+              .data$positive_class_weight
+            ),
+          max_positive_class_weight =
+            max(
+              .data$positive_class_weight
+            )
+        ),
+      by =
+        "config_id"
+    )
+
+  fold_summary <-
+    records %>%
+    dplyr::group_by(
+      .data$config_id,
+      .data$mtry,
+      .data$min_node_size,
+      .data$num_trees,
+      .data$cv_fold
+    ) %>%
+    dplyr::summarise(
+      source_records =
+        dplyr::n(),
+      top1_correct =
+        sum(
+          .data$top_candidate_correct
+        ),
+      top1_accuracy =
+        mean(
+          .data$top_candidate_correct
+        ),
+      mean_reciprocal_rank =
+        mean(
+          .data$reciprocal_rank
+        ),
+      .groups =
+        "drop"
+    ) %>%
+    dplyr::left_join(
+      weights,
+      by =
+        c(
+          "config_id",
+          "cv_fold"
+        )
+    )
+
+  list(
+    summary =
+      overall,
+    fold_summary =
+      fold_summary
+  )
+}
+
+
 evaluate_rf_cv_configuration <- function(
   candidate_pairs_cv,
   config_id,
@@ -18,15 +236,7 @@ evaluate_rf_cv_configuration <- function(
       )
     )
 
-  record_results <-
-    vector(
-      "list",
-      length(
-        fold_ids
-      )
-    )
-
-  weight_results <-
+  fold_results <-
     vector(
       "list",
       length(
@@ -54,24 +264,14 @@ evaluate_rf_cv_configuration <- function(
       )
     )
 
-    training_pairs <-
-      candidate_pairs_cv %>%
-      dplyr::filter(
-        .data$cv_fold !=
-          fold_id
-      )
-
-    validation_pairs <-
-      candidate_pairs_cv %>%
-      dplyr::filter(
-        .data$cv_fold ==
-          fold_id
-      )
-
-    fitted <-
-      fit_rf_candidate_model(
-        training_pairs =
-          training_pairs,
+    fold_results[[index]] <-
+      evaluate_rf_cv_fold(
+        candidate_pairs_cv =
+          candidate_pairs_cv,
+        config_id =
+          config_id,
+        fold_id =
+          fold_id,
         mtry =
           mtry,
         min_node_size =
@@ -79,198 +279,41 @@ evaluate_rf_cv_configuration <- function(
         num_trees =
           num_trees,
         seed =
-          seed +
-            as.integer(
-              fold_id
-            ),
+          seed,
         num_threads =
           num_threads
       )
-
-    probabilities <-
-      predict_rf_match_probability(
-        fitted$model,
-        validation_pairs,
-        num_threads =
-          num_threads
-      )
-
-    record_results[[index]] <-
-      score_rf_candidate_records(
-        validation_pairs,
-        probabilities
-      ) %>%
-      dplyr::mutate(
-        config_id =
-          config_id,
-        mtry =
-          as.integer(
-            mtry
-          ),
-        min_node_size =
-          as.integer(
-            min_node_size
-          ),
-        num_trees =
-          as.integer(
-            num_trees
-          ),
-        .before =
-          "scenario"
-      )
-
-    weight_results[[index]] <-
-      tibble::tibble(
-        config_id =
-          config_id,
-        cv_fold =
-          fold_id,
-        positive_class_weight =
-          unname(
-            fitted$class_weights[
-              "match"
-            ]
-          )
-      )
-
-    rm(
-      fitted
-    )
-
-    gc(
-      verbose =
-        FALSE
-    )
   }
 
   records <-
     dplyr::bind_rows(
-      record_results
+      lapply(
+        fold_results,
+        `[[`,
+        "record_metrics"
+      )
     )
 
   weights <-
     dplyr::bind_rows(
-      weight_results
+      lapply(
+        fold_results,
+        `[[`,
+        "weight_summary"
+      )
     )
 
-  overall <-
-    records %>%
-    dplyr::summarise(
-      config_id =
-        dplyr::first(
-          .data$config_id
-        ),
-
-      mtry =
-        dplyr::first(
-          .data$mtry
-        ),
-
-      min_node_size =
-        dplyr::first(
-          .data$min_node_size
-        ),
-
-      num_trees =
-        dplyr::first(
-          .data$num_trees
-        ),
-
-      source_records =
-        dplyr::n(),
-
-      true_candidate_present =
-        sum(
-          .data$true_candidate_present
-        ),
-
-      top1_correct =
-        sum(
-          .data$top_candidate_correct
-        ),
-
-      top1_accuracy =
-        mean(
-          .data$top_candidate_correct
-        ),
-
-      mean_reciprocal_rank =
-        mean(
-          .data$reciprocal_rank
-        )
-    ) %>%
-    dplyr::left_join(
-      weights %>%
-        dplyr::summarise(
-          config_id =
-            dplyr::first(
-              .data$config_id
-            ),
-
-          mean_positive_class_weight =
-            mean(
-              .data$positive_class_weight
-            ),
-
-          min_positive_class_weight =
-            min(
-              .data$positive_class_weight
-            ),
-
-          max_positive_class_weight =
-            max(
-              .data$positive_class_weight
-            )
-        ),
-      by =
-        "config_id"
-    )
-
-  fold_summary <-
-    records %>%
-    dplyr::group_by(
-      .data$config_id,
-      .data$mtry,
-      .data$min_node_size,
-      .data$num_trees,
-      .data$cv_fold
-    ) %>%
-    dplyr::summarise(
-      source_records =
-        dplyr::n(),
-
-      top1_correct =
-        sum(
-          .data$top_candidate_correct
-        ),
-
-      top1_accuracy =
-        mean(
-          .data$top_candidate_correct
-        ),
-
-      mean_reciprocal_rank =
-        mean(
-          .data$reciprocal_rank
-        ),
-
-      .groups =
-        "drop"
-    ) %>%
-    dplyr::left_join(
-      weights,
-      by =
-        c(
-          "config_id",
-          "cv_fold"
-        )
+  summaries <-
+    summarise_rf_cv_configuration(
+      records,
+      weights
     )
 
   list(
     summary =
-      overall,
+      summaries$summary,
     fold_summary =
-      fold_summary,
+      summaries$fold_summary,
     record_metrics =
       records
   )
