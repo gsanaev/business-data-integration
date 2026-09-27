@@ -651,6 +651,40 @@ build_level1_evaluation_records <- function(
 }
 
 
+validate_unresolved_evaluation_coverage <- function(
+  unresolved,
+  evaluation_records,
+  key_columns,
+  error_message
+) {
+  unresolved_keys <-
+    unresolved %>%
+    dplyr::select(
+      dplyr::all_of(
+        key_columns
+      )
+    )
+
+  if (
+    nrow(evaluation_records) !=
+      nrow(unresolved) ||
+      nrow(
+        dplyr::anti_join(
+          unresolved_keys,
+          evaluation_records,
+          by = key_columns
+        )
+      ) > 0L
+  ) {
+    stop(
+      error_message
+    )
+  }
+
+  invisible(TRUE)
+}
+
+
 build_complete_linkage_evaluation_records <- function(
   source_data,
   source_id_column,
@@ -898,55 +932,21 @@ build_complete_linkage_evaluation_records <- function(
       top_candidate_canonical_firm_id
     )
 
-  unresolved_keys <-
-    unresolved %>%
-    dplyr::select(
-      dplyr::all_of(
-        key_columns
-      )
-    )
-
-  if (
-    nrow(
-      similarity_subset
-    ) !=
-      nrow(
-        unresolved
-      ) ||
-      nrow(
-        dplyr::anti_join(
-          unresolved_keys,
-          similarity_subset,
-          by =
-            key_columns
-        )
-      ) > 0L
-  ) {
-    stop(
+  validate_unresolved_evaluation_coverage(
+    unresolved = unresolved,
+    evaluation_records = similarity_subset,
+    key_columns = key_columns,
+    error_message =
       "Similarity records do not cover all unresolved source entities."
-    )
-  }
+  )
 
-  if (
-    nrow(
-      rf_subset
-    ) !=
-      nrow(
-        unresolved
-      ) ||
-      nrow(
-        dplyr::anti_join(
-          unresolved_keys,
-          rf_subset,
-          by =
-            key_columns
-        )
-      ) > 0L
-  ) {
-    stop(
+  validate_unresolved_evaluation_coverage(
+    unresolved = unresolved,
+    evaluation_records = rf_subset,
+    key_columns = key_columns,
+    error_message =
       "RF records do not cover all unresolved source entities."
-    )
-  }
+  )
 
   similarity_threshold <-
     similarity_policy$score_threshold[[1]]
