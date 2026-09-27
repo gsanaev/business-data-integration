@@ -2,10 +2,9 @@
 # Grouped cross-validation
 # =====================================================================
 
-create_grouped_cv_folds <- function(
-  candidate_pairs,
-  n_folds = 5L,
-  seed = 202605L
+validate_grouped_cv_configuration <- function(
+  n_folds,
+  seed
 ) {
   if (
     length(
@@ -44,26 +43,16 @@ create_grouped_cv_folds <- function(
     )
   }
 
-  truth_ids <-
-    sort(
-      unique(
-        as.character(
-          candidate_pairs$truth_firm_id
-        )
-      )
-    )
+  invisible(
+    TRUE
+  )
+}
 
-  if (
-    length(
-      truth_ids
-    ) <
-      n_folds
-  ) {
-    stop(
-      "Number of enterprise groups must be at least n_folds."
-    )
-  }
 
+shuffle_group_ids_preserving_rng <- function(
+  group_ids,
+  seed
+) {
   had_seed <-
     exists(
       ".Random.seed",
@@ -114,14 +103,51 @@ create_grouped_cv_folds <- function(
     )
   )
 
+  sample(
+    group_ids,
+    size =
+      length(
+        group_ids
+      ),
+    replace = FALSE
+  )
+}
+
+
+create_grouped_cv_folds <- function(
+  candidate_pairs,
+  n_folds = 5L,
+  seed = 202605L
+) {
+  validate_grouped_cv_configuration(
+    n_folds,
+    seed
+  )
+
+  truth_ids <-
+    sort(
+      unique(
+        as.character(
+          candidate_pairs$truth_firm_id
+        )
+      )
+    )
+
+  if (
+    length(
+      truth_ids
+    ) <
+      n_folds
+  ) {
+    stop(
+      "Number of enterprise groups must be at least n_folds."
+    )
+  }
+
   shuffled_ids <-
-    sample(
+    shuffle_group_ids_preserving_rng(
       truth_ids,
-      size =
-        length(
-          truth_ids
-        ),
-      replace = FALSE
+      seed
     )
 
   tibble::tibble(
@@ -303,8 +329,3 @@ summarise_ml_cv_folds <- function(
         "drop"
     )
 }
-
-
-# =====================================================================
-# Bounded Random Forest linkage model
-# =====================================================================
