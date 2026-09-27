@@ -1,68 +1,82 @@
 # =====================================================================
-# Similarity decision-policy selection
+# Linkage decision-policy evaluation and selection
 # =====================================================================
 
-evaluate_similarity_policy <- function(
-  benchmark_records,
+validate_policy_search_inputs <- function(
+  precision_target,
+  margin_grid
+) {
+  if (
+    length(precision_target) != 1L ||
+      !is.numeric(precision_target) ||
+      !is.finite(precision_target) ||
+      precision_target <= 0 ||
+      precision_target > 1
+  ) {
+    stop(
+      "precision_target must lie in (0, 1]."
+    )
+  }
+
+  if (any(margin_grid <= 0)) {
+    stop(
+      "margin_grid must contain strictly positive thresholds."
+    )
+  }
+
+  invisible(TRUE)
+}
+
+
+evaluate_linkage_policy <- function(
+  records,
+  score_column,
+  margin_column,
   score_threshold,
-  margin_threshold
+  margin_threshold,
+  threshold_column
 ) {
   has_candidates <-
-    if (
-      "candidate_count" %in%
-        names(
-          benchmark_records
-        )
-    ) {
-      benchmark_records$candidate_count >
-        0L
+    if ("candidate_count" %in% names(records)) {
+      records$candidate_count > 0L
     } else {
-      !is.na(
-        benchmark_records$top_similarity_score
-      )
+      !is.na(records[[score_column]])
     }
 
   top_score <-
     dplyr::coalesce(
-      benchmark_records$top_similarity_score,
+      records[[score_column]],
       -Inf
     )
 
   margin <-
     dplyr::coalesce(
-      benchmark_records$similarity_margin,
+      records[[margin_column]],
       0
     )
 
   top_candidate_correct <-
     dplyr::coalesce(
-      benchmark_records$top_candidate_correct,
+      records$top_candidate_correct,
       FALSE
     )
 
   auto_link <-
     has_candidates &
-      top_score >=
-        score_threshold &
-      margin >=
-        margin_threshold
+      top_score >= score_threshold &
+      margin >= margin_threshold
 
   review <-
     has_candidates &
-      top_score >=
-        score_threshold &
-      margin <
-        margin_threshold
+      top_score >= score_threshold &
+      margin < margin_threshold
 
   unmatched <-
     !has_candidates |
-      top_score <
-        score_threshold
+      top_score < score_threshold
 
   auto_links <-
-    sum(
-      auto_link
-    )
+    sum(auto_link)
 
   correct_auto_links <-
     sum(
@@ -76,65 +90,161 @@ evaluate_similarity_policy <- function(
         !top_candidate_correct
     )
 
-  tibble::tibble(
-    score_threshold =
-      score_threshold,
+  result <-
+    tibble::tibble(
+      threshold = score_threshold,
+      margin_threshold = margin_threshold,
+      unresolved_records = nrow(records),
+      auto_links = auto_links,
+      correct_auto_links = correct_auto_links,
+      false_auto_links = false_auto_links,
+      auto_precision =
+        if (auto_links > 0L) {
+          correct_auto_links / auto_links
+        } else {
+          NA_real_
+        },
+      automation_rate =
+        auto_links / nrow(records),
+      review_records =
+        sum(review),
+      review_rate =
+        mean(review),
+      unmatched_records =
+        sum(unmatched),
+      unmatched_rate =
+        mean(unmatched)
+    )
 
-    margin_threshold =
-      margin_threshold,
+  names(result)[1] <-
+    threshold_column
 
-    unresolved_records =
-      nrow(
-        benchmark_records
-      ),
+  result
+}
 
-    auto_links =
-      auto_links,
 
-    correct_auto_links =
-      correct_auto_links,
+search_linkage_policy_grid <- function(
+  records,
+  score_grid,
+  margin_grid,
+  precision_target,
+  evaluator
+) {
+  validate_policy_search_inputs(
+    precision_target,
+    margin_grid
+  )
 
-    false_auto_links =
-      false_auto_links,
+  results <-
+    vector(
+      "list",
+      length(score_grid) *
+        length(margin_grid)
+    )
 
-    auto_precision =
-      if (
-        auto_links >
-          0L
-      ) {
-        correct_auto_links /
-          auto_links
-      } else {
-        NA_real_
-      },
+  index <- 1L
 
-    automation_rate =
-      auto_links /
-        nrow(
-          benchmark_records
-        ),
+  for (score_threshold in score_grid) {
+    for (margin_threshold in margin_grid) {
+      results[[index]] <-
+        evaluator(
+          records,
+          score_threshold,
+          margin_threshold
+        )
 
-    review_records =
-      sum(
-        review
-      ),
+      index <-
+        index + 1L
+    }
+  }
 
-    review_rate =
-      mean(
-        review
-      ),
-
-    unmatched_records =
-      sum(
-        unmatched
-      ),
-
-    unmatched_rate =
-      mean(
-        unmatched
-      )
+  dplyr::bind_rows(
+    results
   )
 }
+
+
+select_linkage_policy <- function(
+  policy_grid,
+  precision_target,
+  threshold_column,
+  no_feasible_message,
+  threshold_label
+) {
+  feasible <-
+    policy_grid %>%
+    dplyr::filter(
+      !is.na(
+        .data$auto_precision
+      ),
+      .data$auto_precision >=
+        .env$precision_target
+    )
+
+  if (nrow(feasible) == 0L) {
+    stop(
+      no_feasible_message
+    )
+  }
+
+  maximum_auto_links <-
+    max(
+      feasible$auto_links
+    )
+
+  feasible %>%
+    dplyr::filter(
+      .data$auto_links ==
+        maximum_auto_links
+    ) %>%
+    dplyr::arrange(
+      dplyr::desc(
+        .data[[threshold_column]]
+      ),
+      dplyr::desc(
+        .data$margin_threshold
+      )
+    ) %>%
+    dplyr::slice_head(
+      n = 1L
+    ) %>%
+    dplyr::mutate(
+      precision_target =
+        .env$precision_target,
+      selection_rule =
+        paste(
+          "precision >=",
+          .env$precision_target,
+          "; maximize auto-links;",
+          paste0(
+            "tie-break by higher ",
+            .env$threshold_label,
+            " then margin threshold"
+          )
+        )
+    )
+}
+
+
+# =====================================================================
+# Weighted-similarity policy
+# =====================================================================
+
+evaluate_similarity_policy <- function(
+  benchmark_records,
+  score_threshold,
+  margin_threshold
+) {
+  evaluate_linkage_policy(
+    records = benchmark_records,
+    score_column = "top_similarity_score",
+    margin_column = "similarity_margin",
+    score_threshold = score_threshold,
+    margin_threshold = margin_threshold,
+    threshold_column = "score_threshold"
+  )
+}
+
 
 search_similarity_policy_grid <- function(
   benchmark_records,
@@ -152,67 +262,23 @@ search_similarity_policy_grid <- function(
       by = 0.005
     )
 ) {
-  if (
-    length(precision_target) != 1L ||
-      !is.numeric(
-        precision_target
-      ) ||
-      !is.finite(
-        precision_target
-      ) ||
-      precision_target <= 0 ||
-      precision_target > 1
-  ) {
-    stop(
-      "precision_target must lie in (0, 1]."
-    )
-  }
-
-  if (
-    any(
-      margin_grid <= 0
-    )
-  ) {
-    stop(
-      "margin_grid must contain strictly positive thresholds."
-    )
-  }
-
-  results <-
-    vector(
-      "list",
-      length(
-        score_grid
-      ) *
-        length(
-          margin_grid
-        )
-    )
-
-  index <- 1L
-
-  for (
-    score_threshold in
-      score_grid
-  ) {
-    for (
-      margin_threshold in
-        margin_grid
-    ) {
-      results[[index]] <-
+  search_linkage_policy_grid(
+    records = benchmark_records,
+    score_grid = score_grid,
+    margin_grid = margin_grid,
+    precision_target = precision_target,
+    evaluator =
+      function(
+        records,
+        score_threshold,
+        margin_threshold
+      ) {
         evaluate_similarity_policy(
-          benchmark_records,
+          records,
           score_threshold,
           margin_threshold
         )
-
-      index <-
-        index + 1L
-    }
-  }
-
-  dplyr::bind_rows(
-    results
+      }
   )
 }
 
@@ -221,64 +287,19 @@ select_similarity_policy <- function(
   policy_grid,
   precision_target = 0.99
 ) {
-  feasible <-
-    policy_grid %>%
-    dplyr::filter(
-      !is.na(
-        .data$auto_precision
-      ),
-      .data$auto_precision >=
-        precision_target
-    )
-
-  if (
-    nrow(
-      feasible
-    ) == 0L
-  ) {
-    stop(
-      "No similarity policy satisfies the precision target."
-    )
-  }
-
-  maximum_auto_links <-
-    max(
-      feasible$auto_links
-    )
-
-  feasible %>%
-    dplyr::filter(
-      .data$auto_links ==
-        maximum_auto_links
-    ) %>%
-    dplyr::arrange(
-      dplyr::desc(
-        .data$score_threshold
-      ),
-      dplyr::desc(
-        .data$margin_threshold
-      )
-    ) %>%
-    dplyr::slice_head(
-      n = 1L
-    ) %>%
-    dplyr::mutate(
-      precision_target =
-        precision_target,
-
-      selection_rule =
-        paste(
-          "precision >=",
-          precision_target,
-          "; maximize auto-links;",
-          "tie-break by higher score then margin threshold"
-        )
-    )
+  select_linkage_policy(
+    policy_grid = policy_grid,
+    precision_target = precision_target,
+    threshold_column = "score_threshold",
+    no_feasible_message =
+      "No similarity policy satisfies the precision target.",
+    threshold_label = "score"
+  )
 }
 
 
 # =====================================================================
-# Random Forest linkage decision-policy selection
+# Random Forest policy
 # =====================================================================
 
 evaluate_rf_policy <- function(
@@ -286,134 +307,16 @@ evaluate_rf_policy <- function(
   probability_threshold,
   margin_threshold
 ) {
-  has_candidates <-
-    if (
-      "candidate_count" %in%
-        names(
-          oof_records
-        )
-    ) {
-      oof_records$candidate_count >
-        0L
-    } else {
-      !is.na(
-        oof_records$top_probability
-      )
-    }
-
-  top_score <-
-    dplyr::coalesce(
-      oof_records$top_probability,
-      -Inf
-    )
-
-  margin <-
-    dplyr::coalesce(
-      oof_records$probability_margin,
-      0
-    )
-
-  top_candidate_correct <-
-    dplyr::coalesce(
-      oof_records$top_candidate_correct,
-      FALSE
-    )
-
-  auto_link <-
-    has_candidates &
-      top_score >=
-        probability_threshold &
-      margin >=
-        margin_threshold
-
-  review <-
-    has_candidates &
-      top_score >=
-        probability_threshold &
-      margin <
-        margin_threshold
-
-  unmatched <-
-    !has_candidates |
-      top_score <
-        probability_threshold
-
-  auto_links <-
-    sum(
-      auto_link
-    )
-
-  correct_auto_links <-
-    sum(
-      auto_link &
-        top_candidate_correct
-    )
-
-  false_auto_links <-
-    sum(
-      auto_link &
-        !top_candidate_correct
-    )
-
-  tibble::tibble(
-    probability_threshold =
-      probability_threshold,
-
-    margin_threshold =
-      margin_threshold,
-
-    unresolved_records =
-      nrow(
-        oof_records
-      ),
-
-    auto_links =
-      auto_links,
-
-    correct_auto_links =
-      correct_auto_links,
-
-    false_auto_links =
-      false_auto_links,
-
-    auto_precision =
-      if (
-        auto_links >
-          0L
-      ) {
-        correct_auto_links /
-          auto_links
-      } else {
-        NA_real_
-      },
-
-    automation_rate =
-      auto_links /
-        nrow(
-          oof_records
-        ),
-
-    review_records =
-      sum(
-        review
-      ),
-
-    review_rate =
-      mean(
-        review
-      ),
-
-    unmatched_records =
-      sum(
-        unmatched
-      ),
-
-    unmatched_rate =
-      mean(
-        unmatched
-      )
+  evaluate_linkage_policy(
+    records = oof_records,
+    score_column = "top_probability",
+    margin_column = "probability_margin",
+    score_threshold = probability_threshold,
+    margin_threshold = margin_threshold,
+    threshold_column = "probability_threshold"
   )
 }
+
 
 search_rf_policy_grid <- function(
   oof_records,
@@ -431,70 +334,23 @@ search_rf_policy_grid <- function(
       by = 0.005
     )
 ) {
-  if (
-    length(
-      precision_target
-    ) != 1L ||
-      !is.numeric(
-        precision_target
-      ) ||
-      !is.finite(
-        precision_target
-      ) ||
-      precision_target <= 0 ||
-      precision_target > 1
-  ) {
-    stop(
-      "precision_target must lie in (0, 1]."
-    )
-  }
-
-  if (
-    any(
-      margin_grid <= 0
-    )
-  ) {
-    stop(
-      "margin_grid must contain strictly positive thresholds."
-    )
-  }
-
-  results <-
-    vector(
-      "list",
-      length(
-        probability_grid
-      ) *
-        length(
-          margin_grid
-        )
-    )
-
-  index <-
-    1L
-
-  for (
-    probability_threshold in
-      probability_grid
-  ) {
-    for (
-      margin_threshold in
-        margin_grid
-    ) {
-      results[[index]] <-
+  search_linkage_policy_grid(
+    records = oof_records,
+    score_grid = probability_grid,
+    margin_grid = margin_grid,
+    precision_target = precision_target,
+    evaluator =
+      function(
+        records,
+        probability_threshold,
+        margin_threshold
+      ) {
         evaluate_rf_policy(
-          oof_records,
+          records,
           probability_threshold,
           margin_threshold
         )
-
-      index <-
-        index + 1L
-    }
-  }
-
-  dplyr::bind_rows(
-    results
+      }
   )
 }
 
@@ -503,62 +359,15 @@ select_rf_policy <- function(
   policy_grid,
   precision_target = 0.99
 ) {
-  feasible <-
-    policy_grid %>%
-    dplyr::filter(
-      !is.na(
-        .data$auto_precision
-      ),
-      .data$auto_precision >=
-        precision_target
-    )
-
-  if (
-    nrow(
-      feasible
-    ) == 0L
-  ) {
-    stop(
-      "No RF linkage policy satisfies the precision target."
-    )
-  }
-
-  maximum_auto_links <-
-    max(
-      feasible$auto_links
-    )
-
-  feasible %>%
-    dplyr::filter(
-      .data$auto_links ==
-        maximum_auto_links
-    ) %>%
-    dplyr::arrange(
-      dplyr::desc(
-        .data$probability_threshold
-      ),
-      dplyr::desc(
-        .data$margin_threshold
-      )
-    ) %>%
-    dplyr::slice_head(
-      n =
-        1L
-    ) %>%
-    dplyr::mutate(
-      precision_target =
-        precision_target,
-
-      selection_rule =
-        paste(
-          "precision >=",
-          precision_target,
-          "; maximize auto-links;",
-          "tie-break by higher probability then margin threshold"
-        )
-    )
+  select_linkage_policy(
+    policy_grid = policy_grid,
+    precision_target = precision_target,
+    threshold_column = "probability_threshold",
+    no_feasible_message =
+      "No RF linkage policy satisfies the precision target.",
+    threshold_label = "probability"
+  )
 }
-
 
 # =====================================================================
 # Frozen development comparison
