@@ -469,6 +469,140 @@ build_linkage_method_comparison_by_group <- function(
 # Stage 10B complete held-out linkage workflow
 # =====================================================================
 
+build_level2_evaluation_records <- function(
+  records,
+  score_column,
+  margin_column,
+  score_threshold,
+  margin_threshold,
+  method_name,
+  linkage_method,
+  assignment_error = NULL
+) {
+  records <-
+    records %>%
+    dplyr::mutate(
+      candidate_count =
+        dplyr::coalesce(
+          as.integer(
+            .data$candidate_count
+          ),
+          0L
+        ),
+
+      top_score =
+        dplyr::coalesce(
+          .data[[score_column]],
+          -Inf
+        ),
+
+      margin =
+        dplyr::coalesce(
+          .data[[margin_column]],
+          0
+        )
+    )
+
+  if (
+    !is.null(
+      assignment_error
+    ) &&
+      any(
+        records$candidate_count >
+          0L &
+          is.na(
+            records$top_candidate_register_id
+          )
+      )
+  ) {
+    stop(
+      assignment_error
+    )
+  }
+
+  records %>%
+    dplyr::mutate(
+      decision_status =
+        dplyr::case_when(
+          .data$candidate_count >
+            0L &
+            .data$top_score >=
+              .env$score_threshold &
+            .data$margin >=
+              .env$margin_threshold ~
+            "auto_link",
+
+          .data$candidate_count >
+            0L &
+            .data$top_score >=
+              .env$score_threshold ~
+            "review",
+
+          TRUE ~
+            "unmatched"
+        ),
+
+      automatic_link =
+        .data$decision_status ==
+          "auto_link",
+
+      proposed_register_id =
+        .data$top_candidate_register_id,
+
+      proposed_canonical_firm_id =
+        .data$top_candidate_canonical_firm_id,
+
+      assigned_register_id =
+        dplyr::if_else(
+          .data$automatic_link,
+          .data$proposed_register_id,
+          NA_character_
+        ),
+
+      assigned_canonical_firm_id =
+        dplyr::if_else(
+          .data$automatic_link,
+          .data$proposed_canonical_firm_id,
+          NA_character_
+        ),
+
+      assignment_correct =
+        dplyr::if_else(
+          .data$automatic_link,
+          .data$assigned_register_id ==
+            .data$true_register_id,
+          NA
+        )
+    ) %>%
+    dplyr::transmute(
+      scenario,
+      source,
+      truth_firm_id,
+      source_record_id,
+      business_id,
+      true_register_id,
+      true_canonical_firm_id,
+      method =
+        method_name,
+      decision_stage =
+        "level2",
+      decision_status,
+      linkage_method =
+        linkage_method,
+      identifier_issue,
+      candidate_count,
+      proposed_register_id,
+      proposed_canonical_firm_id,
+      assigned_register_id,
+      assigned_canonical_firm_id,
+      top_score,
+      margin,
+      automatic_link,
+      assignment_correct
+    )
+}
+
+
 build_complete_linkage_evaluation_records <- function(
   source_data,
   source_id_column,
@@ -837,104 +971,19 @@ build_complete_linkage_evaluation_records <- function(
       by =
         key_columns
     ) %>%
-    dplyr::mutate(
-      candidate_count =
-        dplyr::coalesce(
-          as.integer(
-            .data$candidate_count
-          ),
-          0L
-        ),
-
-      top_score =
-        dplyr::coalesce(
-          .data$top_similarity_score,
-          -Inf
-        ),
-
-      margin =
-        dplyr::coalesce(
-          .data$similarity_margin,
-          0
-        ),
-
-      decision_status =
-        dplyr::case_when(
-          .data$candidate_count >
-            0L &
-            .data$top_score >=
-              similarity_threshold &
-            .data$margin >=
-              similarity_margin_threshold ~
-            "auto_link",
-
-          .data$candidate_count >
-            0L &
-            .data$top_score >=
-              similarity_threshold ~
-            "review",
-
-          TRUE ~
-            "unmatched"
-        ),
-
-      automatic_link =
-        .data$decision_status ==
-          "auto_link",
-
-      proposed_register_id =
-        .data$top_candidate_register_id,
-
-      proposed_canonical_firm_id =
-        .data$top_candidate_canonical_firm_id,
-
-      assigned_register_id =
-        dplyr::if_else(
-          .data$automatic_link,
-          .data$proposed_register_id,
-          NA_character_
-        ),
-
-      assigned_canonical_firm_id =
-        dplyr::if_else(
-          .data$automatic_link,
-          .data$proposed_canonical_firm_id,
-          NA_character_
-        ),
-
-      assignment_correct =
-        dplyr::if_else(
-          .data$automatic_link,
-          .data$assigned_register_id ==
-            .data$true_register_id,
-          NA
-        )
-    ) %>%
-    dplyr::transmute(
-      scenario,
-      source,
-      truth_firm_id,
-      source_record_id,
-      business_id,
-      true_register_id,
-      true_canonical_firm_id,
-      method =
+    build_level2_evaluation_records(
+      score_column =
+        "top_similarity_score",
+      margin_column =
+        "similarity_margin",
+      score_threshold =
+        similarity_threshold,
+      margin_threshold =
+        similarity_margin_threshold,
+      method_name =
         "weighted_similarity",
-      decision_stage =
-        "level2",
-      decision_status,
       linkage_method =
-        "weighted_edit_similarity",
-      identifier_issue,
-      candidate_count,
-      proposed_register_id,
-      proposed_canonical_firm_id,
-      assigned_register_id,
-      assigned_canonical_firm_id,
-      top_score,
-      margin,
-      automatic_link,
-      assignment_correct
+        "weighted_edit_similarity"
     )
 
   rf_threshold <-
@@ -966,122 +1015,21 @@ build_complete_linkage_evaluation_records <- function(
       by =
         key_columns
     ) %>%
-    dplyr::mutate(
-      candidate_count =
-        dplyr::coalesce(
-          as.integer(
-            .data$candidate_count
-          ),
-          0L
-        ),
-
-      top_score =
-        dplyr::coalesce(
-          .data$top_probability,
-          -Inf
-        ),
-
-      margin =
-        dplyr::coalesce(
-          .data$probability_margin,
-          0
-        )
-    )
-
-  if (
-    any(
-      rf_level2$candidate_count >
-        0L &
-        is.na(
-          rf_level2$top_candidate_register_id
-        )
-    )
-  ) {
-    stop(
-      "RF candidate assignments are missing for records with candidates."
-    )
-  }
-
-  rf_level2 <-
-    rf_level2 %>%
-    dplyr::mutate(
-      decision_status =
-        dplyr::case_when(
-          .data$candidate_count >
-            0L &
-            .data$top_score >=
-              rf_threshold &
-            .data$margin >=
-              rf_margin_threshold ~
-            "auto_link",
-
-          .data$candidate_count >
-            0L &
-            .data$top_score >=
-              rf_threshold ~
-            "review",
-
-          TRUE ~
-            "unmatched"
-        ),
-
-      automatic_link =
-        .data$decision_status ==
-          "auto_link",
-
-      proposed_register_id =
-        .data$top_candidate_register_id,
-
-      proposed_canonical_firm_id =
-        .data$top_candidate_canonical_firm_id,
-
-      assigned_register_id =
-        dplyr::if_else(
-          .data$automatic_link,
-          .data$proposed_register_id,
-          NA_character_
-        ),
-
-      assigned_canonical_firm_id =
-        dplyr::if_else(
-          .data$automatic_link,
-          .data$proposed_canonical_firm_id,
-          NA_character_
-        ),
-
-      assignment_correct =
-        dplyr::if_else(
-          .data$automatic_link,
-          .data$assigned_register_id ==
-            .data$true_register_id,
-          NA
-        )
-    ) %>%
-    dplyr::transmute(
-      scenario,
-      source,
-      truth_firm_id,
-      source_record_id,
-      business_id,
-      true_register_id,
-      true_canonical_firm_id,
-      method =
+    build_level2_evaluation_records(
+      score_column =
+        "top_probability",
+      margin_column =
+        "probability_margin",
+      score_threshold =
+        rf_threshold,
+      margin_threshold =
+        rf_margin_threshold,
+      method_name =
         "random_forest",
-      decision_stage =
-        "level2",
-      decision_status,
       linkage_method =
         "random_forest",
-      identifier_issue,
-      candidate_count,
-      proposed_register_id,
-      proposed_canonical_firm_id,
-      assigned_register_id,
-      assigned_canonical_firm_id,
-      top_score,
-      margin,
-      automatic_link,
-      assignment_correct
+      assignment_error =
+        "RF candidate assignments are missing for records with candidates."
     )
 
   result <-
