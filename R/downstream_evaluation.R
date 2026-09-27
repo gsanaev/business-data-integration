@@ -800,6 +800,93 @@ summarise_downstream_indicator_errors <- function(
 }
 
 
+evaluate_downstream_method <- function(
+  heldout_sources,
+  linkage_records,
+  truth_bundle,
+  scenario_name,
+  method_name,
+  required_months
+) {
+  method_assignments <-
+    linkage_records %>%
+    dplyr::filter(
+      .data$scenario ==
+        .env$scenario_name,
+      .data$method ==
+        .env$method_name,
+      .data$source %in%
+        c(
+          "employment",
+          "turnover",
+          "accounting"
+        )
+    )
+
+  collision_result <-
+    resolve_downstream_assignment_collisions(
+      method_assignments
+    )
+
+  observed_crosswalk <-
+    build_downstream_crosswalk(
+      heldout_sources$firms,
+      collision_result$assignments,
+      "downstream_assigned_canonical_firm_id"
+    )
+
+  observed_bundle <-
+    build_downstream_indicator_bundle(
+      heldout_sources,
+      observed_crosswalk,
+      required_months
+    )
+
+  error_records <-
+    compare_downstream_indicator_tables(
+      observed_bundle$indicators,
+      truth_bundle$indicators,
+      scenario_name,
+      method_name
+    )
+
+  coverage <-
+    tibble::tibble(
+      scenario =
+        scenario_name,
+      method =
+        method_name,
+      truth_common_firms =
+        length(
+          truth_bundle$common_firms
+        ),
+      observed_common_firms =
+        length(
+          observed_bundle$common_firms
+        ),
+      truth_enterprise_years =
+        nrow(
+          truth_bundle$enterprise_year
+        ),
+      observed_enterprise_years =
+        nrow(
+          observed_bundle$enterprise_year
+        )
+    )
+
+  list(
+    error_records =
+      error_records,
+    collision_records =
+      collision_result$collisions,
+    coverage =
+      coverage,
+    observed_indicators =
+      observed_bundle$indicators
+  )
+}
+
+
 run_downstream_scenario_evaluation <- function(
   operational_sources,
   linkage_records,
@@ -848,81 +935,19 @@ run_downstream_scenario_evaluation <- function(
     lapply(
       methods,
       function(method_name) {
-        method_assignments <-
-          linkage_records %>%
-          dplyr::filter(
-            .data$scenario ==
-              .env$scenario_name,
-            .data$method ==
-              .env$method_name,
-            .data$source %in%
-              c(
-                "employment",
-                "turnover",
-                "accounting"
-              )
-          )
-
-        collision_result <-
-          resolve_downstream_assignment_collisions(
-            method_assignments
-          )
-
-        observed_crosswalk <-
-          build_downstream_crosswalk(
-            heldout_sources$firms,
-            collision_result$assignments,
-            "downstream_assigned_canonical_firm_id"
-          )
-
-        observed_bundle <-
-          build_downstream_indicator_bundle(
+        evaluate_downstream_method(
+          heldout_sources =
             heldout_sources,
-            observed_crosswalk,
-            required_months
-          )
-
-        error_records <-
-          compare_downstream_indicator_tables(
-            observed_bundle$indicators,
-            truth_bundle$indicators,
+          linkage_records =
+            linkage_records,
+          truth_bundle =
+            truth_bundle,
+          scenario_name =
             scenario_name,
-            method_name
-          )
-
-        coverage <-
-          tibble::tibble(
-            scenario =
-              scenario_name,
-            method =
-              method_name,
-            truth_common_firms =
-              length(
-                truth_bundle$common_firms
-              ),
-            observed_common_firms =
-              length(
-                observed_bundle$common_firms
-              ),
-            truth_enterprise_years =
-              nrow(
-                truth_bundle$enterprise_year
-              ),
-            observed_enterprise_years =
-              nrow(
-                observed_bundle$enterprise_year
-              )
-          )
-
-        list(
-          error_records =
-            error_records,
-          collision_records =
-            collision_result$collisions,
-          coverage =
-            coverage,
-          observed_indicators =
-            observed_bundle$indicators
+          method_name =
+            method_name,
+          required_months =
+            required_months
         )
       }
     )
