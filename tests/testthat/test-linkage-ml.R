@@ -1071,6 +1071,120 @@ testthat::test_that(
 
 
 testthat::test_that(
+  "RF class weighting rejects invalid training labels",
+  {
+    testthat::expect_error(
+      compute_rf_class_weights(c(1, 0)),
+      "RF class labels must be non-missing logical values"
+    )
+
+    testthat::expect_error(
+      compute_rf_class_weights(c(TRUE, NA)),
+      "RF class labels must be non-missing logical values"
+    )
+
+    testthat::expect_error(
+      compute_rf_class_weights(c(TRUE, TRUE)),
+      "Both RF training classes must be present"
+    )
+  }
+)
+
+
+testthat::test_that(
+  "RF model fitting rejects mtry outside the feature range",
+  {
+    candidate_pairs <-
+      make_valid_ml_candidate_pairs()
+
+    testthat::expect_error(
+      fit_rf_candidate_model(
+        training_pairs = candidate_pairs,
+        mtry = 0L,
+        min_node_size = 1L
+      ),
+      "mtry is outside the available feature range"
+    )
+  }
+)
+
+
+testthat::test_that(
+  "RF record scoring rejects invalid probability vectors",
+  {
+    candidate_pairs <-
+      make_valid_ml_candidate_pairs()
+
+    testthat::expect_error(
+      score_rf_candidate_records(
+        candidate_pairs,
+        0.5
+      ),
+      "RF probability vector does not match candidate-pair rows"
+    )
+
+    testthat::expect_error(
+      score_rf_candidate_records(
+        candidate_pairs,
+        c(0.8, NA_real_)
+      ),
+      "RF match probabilities must be finite values in \\[0, 1\\]"
+    )
+
+    testthat::expect_error(
+      score_rf_candidate_records(
+        candidate_pairs,
+        c(0.8, 1.1)
+      ),
+      "RF match probabilities must be finite values in \\[0, 1\\]"
+    )
+  }
+)
+
+
+testthat::test_that(
+  "RF assignment summarisation rejects malformed inputs",
+  {
+    candidate_pairs <-
+      make_valid_ml_candidate_pairs()
+
+    testthat::expect_error(
+      summarise_rf_top_candidate_assignments(
+        candidate_pairs =
+          dplyr::select(
+            candidate_pairs,
+            -canonical_firm_id
+          ),
+        match_score =
+          c(0.8, 0.2)
+      ),
+      "RF assignment candidate pairs are missing required columns"
+    )
+
+    testthat::expect_error(
+      summarise_rf_top_candidate_assignments(
+        candidate_pairs =
+          candidate_pairs,
+        match_score =
+          0.8
+      ),
+      "RF match-score vector does not match candidate-pair rows"
+    )
+
+    testthat::expect_error(
+      summarise_rf_top_candidate_assignments(
+        candidate_pairs =
+          candidate_pairs,
+        match_score =
+          c(Inf, 0.2)
+      ),
+      "RF match scores must be finite values in \\[0, 1\\]"
+    )
+  }
+)
+
+
+testthat::test_that(
   "RF configuration selection follows the frozen ranking rule",
   {
     tuning_summary <-
