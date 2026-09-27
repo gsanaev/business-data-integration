@@ -239,41 +239,65 @@ predict_rf_match_probability <- function(
 }
 
 
-score_rf_candidate_records <- function(
-  candidate_pairs,
-  match_probability
+validate_rf_score_vector <- function(
+  score,
+  expected_length,
+  length_error,
+  value_error
 ) {
   if (
     length(
-      match_probability
+      score
     ) !=
-      nrow(
-        candidate_pairs
-      )
+      expected_length
   ) {
     stop(
-      "RF probability vector does not match candidate-pair rows."
+      length_error
     )
   }
 
   if (
     anyNA(
-      match_probability
+      score
     ) ||
       any(
         !is.finite(
-          match_probability
+          score
         )
       ) ||
       any(
-        match_probability < 0 |
-          match_probability > 1
+        score < 0 |
+          score > 1
       )
   ) {
     stop(
-      "RF match probabilities must be finite values in [0, 1]."
+      value_error
     )
   }
+
+  invisible(
+    TRUE
+  )
+}
+
+
+score_rf_candidate_records <- function(
+  candidate_pairs,
+  match_probability
+) {
+
+  validate_rf_score_vector(
+    score =
+      match_probability,
+    expected_length =
+      nrow(
+        candidate_pairs
+      ),
+    length_error =
+      "RF probability vector does not match candidate-pair rows.",
+    value_error =
+      "RF match probabilities must be finite values in [0, 1]."
+  )
 
   if (
     !"cv_fold" %in%
@@ -431,37 +455,18 @@ summarise_rf_top_candidate_assignments <- function(
     )
   }
 
-  if (
-    length(
-      match_score
-    ) !=
+  validate_rf_score_vector(
+    score =
+      match_score,
+    expected_length =
       nrow(
         candidate_pairs
-      )
-  ) {
-    stop(
-      "RF match-score vector does not match candidate-pair rows."
-    )
-  }
-
-  if (
-    anyNA(
-      match_score
-    ) ||
-      any(
-        !is.finite(
-          match_score
-        )
-      ) ||
-      any(
-        match_score < 0 |
-          match_score > 1
-      )
-  ) {
-    stop(
+      ),
+    length_error =
+      "RF match-score vector does not match candidate-pair rows.",
+    value_error =
       "RF match scores must be finite values in [0, 1]."
-    )
-  }
+  )
 
   candidate_pairs %>%
     dplyr::mutate(
