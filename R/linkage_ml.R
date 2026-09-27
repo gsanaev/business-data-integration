@@ -1164,6 +1164,151 @@ score_rf_candidate_records <- function(
 }
 
 
+summarise_rf_top_candidate_assignments <- function(
+  candidate_pairs,
+  match_score
+) {
+  required_columns <-
+    c(
+      "scenario",
+      "source",
+      "truth_firm_id",
+      "source_record_id",
+      "register_id",
+      "canonical_firm_id",
+      "is_true_candidate"
+    )
+
+  missing_columns <-
+    setdiff(
+      required_columns,
+      names(
+        candidate_pairs
+      )
+    )
+
+  if (
+    length(
+      missing_columns
+    ) > 0L
+  ) {
+    stop(
+      "RF assignment candidate pairs are missing required columns: ",
+      paste(
+        missing_columns,
+        collapse = ", "
+      )
+    )
+  }
+
+  if (
+    length(
+      match_score
+    ) !=
+      nrow(
+        candidate_pairs
+      )
+  ) {
+    stop(
+      "RF match-score vector does not match candidate-pair rows."
+    )
+  }
+
+  if (
+    anyNA(
+      match_score
+    ) ||
+      any(
+        !is.finite(
+          match_score
+        )
+      ) ||
+      any(
+        match_score < 0 |
+          match_score > 1
+      )
+  ) {
+    stop(
+      "RF match scores must be finite values in [0, 1]."
+    )
+  }
+
+  candidate_pairs %>%
+    dplyr::mutate(
+      rf_match_score =
+        match_score
+    ) %>%
+    dplyr::arrange(
+      .data$scenario,
+      .data$source,
+      .data$source_record_id,
+      dplyr::desc(
+        .data$rf_match_score
+      ),
+      .data$register_id
+    ) %>%
+    dplyr::group_by(
+      .data$scenario,
+      .data$source,
+      .data$source_record_id
+    ) %>%
+    dplyr::summarise(
+      truth_firm_id =
+        dplyr::first(
+          .data$truth_firm_id
+        ),
+
+      candidate_count =
+        dplyr::n(),
+
+      top_candidate_register_id =
+        dplyr::first(
+          .data$register_id
+        ),
+
+      top_candidate_canonical_firm_id =
+        dplyr::first(
+          .data$canonical_firm_id
+        ),
+
+      top_match_score =
+        dplyr::first(
+          .data$rf_match_score
+        ),
+
+      top_candidate_correct =
+        dplyr::first(
+          .data$is_true_candidate
+        ),
+
+      .groups =
+        "drop"
+    )
+}
+
+
+build_rf_top_candidate_assignments <- function(
+  fitted_model,
+  candidate_pairs,
+  num_threads = 2L
+) {
+  match_score <-
+    predict_rf_match_probability(
+      fitted_model,
+      candidate_pairs,
+      num_threads =
+        num_threads
+    )
+
+  summarise_rf_top_candidate_assignments(
+    candidate_pairs =
+      candidate_pairs,
+    match_score =
+      match_score
+  )
+}
+
+
 evaluate_rf_cv_configuration <- function(
   candidate_pairs_cv,
   config_id,

@@ -1012,3 +1012,105 @@ testthat::test_that(
     )
   }
 )
+
+testthat::test_that(
+  "RF top-candidate assignments retain selected enterprise identifiers",
+  {
+    candidate_pairs <-
+      tibble::tibble(
+        scenario =
+          c(
+            "baseline",
+            "baseline",
+            "baseline"
+          ),
+        source =
+          c(
+            "employment",
+            "employment",
+            "employment"
+          ),
+        truth_firm_id =
+          c(
+            "F001",
+            "F001",
+            "F002"
+          ),
+        source_record_id =
+          c(
+            "E001",
+            "E001",
+            "E002"
+          ),
+        register_id =
+          c(
+            "R002",
+            "R001",
+            "R003"
+          ),
+        canonical_firm_id =
+          c(
+            "C002",
+            "C001",
+            "C003"
+          ),
+        is_true_candidate =
+          c(
+            FALSE,
+            TRUE,
+            TRUE
+          )
+      )
+
+    match_score <-
+      c(
+        0.20,
+        0.80,
+        0.70
+      )
+
+    result <-
+      summarise_rf_top_candidate_assignments(
+        candidate_pairs =
+          candidate_pairs,
+        match_score =
+          match_score
+      )
+
+    testthat::expect_equal(
+      nrow(result),
+      2L
+    )
+
+    first_record <-
+      result %>%
+      dplyr::filter(
+        .data$source_record_id ==
+          "E001"
+      )
+
+    testthat::expect_equal(
+      first_record$top_candidate_register_id,
+      "R001"
+    )
+
+    testthat::expect_equal(
+      first_record$top_candidate_canonical_firm_id,
+      "C001"
+    )
+
+    testthat::expect_true(
+      first_record$top_candidate_correct
+    )
+
+    testthat::expect_equal(
+      first_record$top_match_score,
+      0.80
+    )
+
+    testthat::expect_equal(
+      first_record$candidate_count,
+      2L
+    )
+  }
+)

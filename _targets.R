@@ -1000,6 +1000,18 @@ list(
   ),
 
   tar_target(
+    rf_heldout_assignments,
+    build_rf_top_candidate_assignments(
+      fitted_model =
+        rf_final_development_model$model,
+      candidate_pairs =
+        ml_candidate_pairs_heldout,
+      num_threads =
+        2L
+    )
+  ),
+
+  tar_target(
     heldout_rf_summary,
     summarise_rf_benchmark(
       rf_heldout_records
