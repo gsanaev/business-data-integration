@@ -79,6 +79,82 @@ source(
 )
 
 
+make_valid_ml_candidate_pairs <- function() {
+  tibble::tibble(
+    scenario =
+      c(
+        "baseline",
+        "baseline"
+      ),
+    source =
+      c(
+        "employment",
+        "employment"
+      ),
+    truth_firm_id =
+      c(
+        "T001",
+        "T001"
+      ),
+    source_record_id =
+      c(
+        "E001",
+        "E001"
+      ),
+    register_id =
+      c(
+        "R001",
+        "R002"
+      ),
+    canonical_firm_id =
+      c(
+        "C000001",
+        "C000002"
+      ),
+    true_register_id =
+      c(
+        "R001",
+        "R001"
+      ),
+    name_similarity =
+      c(
+        1,
+        0.40
+      ),
+    street_similarity =
+      c(
+        1,
+        0.30
+      ),
+    city_similarity =
+      c(
+        1,
+        0
+      ),
+    postal_code_match =
+      c(
+        1,
+        0
+      ),
+    legal_form_match =
+      c(
+        1,
+        1
+      ),
+    nace_match =
+      c(
+        1,
+        0
+      ),
+    is_true_candidate =
+      c(
+        TRUE,
+        FALSE
+      )
+  )
+}
+
+
 testthat::test_that(
   "ML linkage features are bounded and operational",
   {
@@ -256,6 +332,140 @@ testthat::test_that(
             result
           )
       )
+    )
+  }
+)
+
+
+testthat::test_that(
+  "ML candidate validation rejects malformed structure and labels",
+  {
+    candidate_pairs <-
+      make_valid_ml_candidate_pairs()
+
+    testthat::expect_error(
+      validate_ml_candidate_pairs(
+        candidate_pairs %>%
+          dplyr::select(
+            -source
+          )
+      ),
+      "missing required columns"
+    )
+
+    testthat::expect_error(
+      validate_ml_candidate_pairs(
+        candidate_pairs[
+          0,
+        ]
+      ),
+      "must not be empty"
+    )
+
+    testthat::expect_error(
+      validate_ml_candidate_pairs(
+        candidate_pairs %>%
+          dplyr::mutate(
+            source =
+              NA_character_
+          )
+      ),
+      "missing required values"
+    )
+
+    testthat::expect_error(
+      validate_ml_candidate_pairs(
+        candidate_pairs %>%
+          dplyr::mutate(
+            is_true_candidate =
+              as.integer(
+                .data$is_true_candidate
+              )
+          )
+      ),
+      "must be logical"
+    )
+  }
+)
+
+
+testthat::test_that(
+  "ML candidate validation rejects invalid feature values",
+  {
+    candidate_pairs <-
+      make_valid_ml_candidate_pairs()
+
+    testthat::expect_error(
+      validate_ml_candidate_pairs(
+        candidate_pairs %>%
+          dplyr::mutate(
+            name_similarity =
+              as.character(
+                .data$name_similarity
+              )
+          )
+      ),
+      "must be numeric"
+    )
+
+    testthat::expect_error(
+      validate_ml_candidate_pairs(
+        candidate_pairs %>%
+          dplyr::mutate(
+            name_similarity =
+              Inf
+          )
+      ),
+      "finite values"
+    )
+
+    testthat::expect_error(
+      validate_ml_candidate_pairs(
+        candidate_pairs %>%
+          dplyr::mutate(
+            name_similarity =
+              1.1
+          )
+      ),
+      "must lie in"
+    )
+  }
+)
+
+
+testthat::test_that(
+  "ML candidate validation rejects pair-integrity violations",
+  {
+    candidate_pairs <-
+      make_valid_ml_candidate_pairs()
+
+    duplicate_pairs <-
+      dplyr::bind_rows(
+        candidate_pairs,
+        candidate_pairs[
+          1,
+        ]
+      )
+
+    testthat::expect_error(
+      validate_ml_candidate_pairs(
+        duplicate_pairs
+      ),
+      "Duplicate ML candidate pairs"
+    )
+
+    multiple_true_candidates <-
+      candidate_pairs %>%
+      dplyr::mutate(
+        is_true_candidate =
+          TRUE
+      )
+
+    testthat::expect_error(
+      validate_ml_candidate_pairs(
+        multiple_true_candidates
+      ),
+      "more than one true candidate"
     )
   }
 )
