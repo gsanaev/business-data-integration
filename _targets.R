@@ -1065,6 +1065,110 @@ list(
   ),
 
   tar_target(
+    heldout_complete_linkage_records,
+    {
+      source_specs <-
+        list(
+          employment =
+            "employment_source_id",
+          turnover =
+            "turnover_source_id",
+          accounting =
+            "accounting_source_id"
+        )
+
+      scenario_names <-
+        c(
+          "baseline",
+          "moderate",
+          "difficult"
+        )
+
+      results <-
+        list()
+
+      result_index <-
+        1L
+
+      for (
+        scenario_name in
+          scenario_names
+      ) {
+        scenario_sources <-
+          identity_scenarios[[scenario_name]]$sources
+
+        for (
+          source_name in
+            names(
+              source_specs
+            )
+        ) {
+          results[[result_index]] <-
+            build_complete_linkage_evaluation_records(
+              source_data =
+                scenario_sources[[source_name]],
+              source_id_column =
+                source_specs[[source_name]],
+              register_data =
+                scenario_sources$firms,
+              enterprise_split =
+                enterprise_split,
+              scenario_name =
+                scenario_name,
+              source_name =
+                source_name,
+              similarity_records =
+                heldout_similarity_records,
+              similarity_policy =
+                similarity_policy_selected,
+              rf_records =
+                rf_heldout_records,
+              rf_assignments =
+                rf_heldout_assignments,
+              rf_policy =
+                rf_selected_policy,
+              sample_role =
+                "heldout"
+            )
+
+          result_index <-
+            result_index +
+              1L
+        }
+      }
+
+      dplyr::bind_rows(
+        results
+      )
+    }
+  ),
+
+  tar_target(
+    heldout_complete_linkage_summary,
+    summarise_complete_linkage_evaluation(
+      heldout_complete_linkage_records
+    )
+  ),
+
+  tar_target(
+    heldout_complete_linkage_by_scenario,
+    summarise_complete_linkage_evaluation(
+      heldout_complete_linkage_records,
+      group_columns =
+        "scenario"
+    )
+  ),
+
+  tar_target(
+    heldout_complete_linkage_by_source,
+    summarise_complete_linkage_evaluation(
+      heldout_complete_linkage_records,
+      group_columns =
+        "source"
+    )
+  ),
+
+  tar_target(
     raw_files,
     {
       dir.create(
