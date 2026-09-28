@@ -527,5 +527,3 @@ testthat::test_that(
     )
   }
 )
-
-

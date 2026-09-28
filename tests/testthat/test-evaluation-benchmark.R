@@ -550,4 +550,3 @@ testthat::test_that(
     )
   }
 )
-

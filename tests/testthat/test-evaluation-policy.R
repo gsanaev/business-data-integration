@@ -636,5 +636,3 @@ testthat::test_that(
     )
   }
 )
-
-

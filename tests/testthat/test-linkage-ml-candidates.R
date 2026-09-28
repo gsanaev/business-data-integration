@@ -777,5 +777,3 @@ testthat::test_that(
     )
   }
 )
-
-

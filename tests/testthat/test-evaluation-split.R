@@ -172,5 +172,3 @@ testthat::test_that(
     )
   }
 )
-
-
