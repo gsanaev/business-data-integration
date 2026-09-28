@@ -32,6 +32,7 @@ tar_source(
     "R/coherence.R",
     "R/enterprise_year.R",
     "R/indicators.R",
+    "R/indicator_workflow.R",
     "R/downstream_evaluation.R",
     "R/evaluation_split.R",
     "R/evaluation_benchmark.R",
@@ -1116,72 +1117,11 @@ list(
           year = year(month)
         )
 
-      validate_monthly_panel_structure(
-        panel,
-        required_months
-      )
-
-      enterprise_year <-
-        build_enterprise_year(
+      build_indicator_results(
+        panel =
           panel,
+        required_months =
           required_months
-        )
-
-      validate_enterprise_year(
-        enterprise_year
-      )
-
-      indicators_sector_region <-
-        aggregate_indicators(
-          enterprise_year,
-          c(
-            "year",
-            "nace_code",
-            "region_code"
-          )
-        )
-
-      indicators_sector <-
-        aggregate_indicators(
-          enterprise_year,
-          c(
-            "year",
-            "nace_code"
-          )
-        )
-
-      indicators_region <-
-        aggregate_indicators(
-          enterprise_year,
-          c(
-            "year",
-            "region_code"
-          )
-        )
-
-      indicator_tables <-
-        list(
-          sector_region =
-            indicators_sector_region,
-          sector =
-            indicators_sector,
-          region =
-            indicators_region
-        )
-
-      validate_indicator_tables(
-        indicator_tables
-      )
-
-      list(
-        enterprise_year =
-          enterprise_year,
-        sector_region =
-          indicators_sector_region,
-        sector =
-          indicators_sector,
-        region =
-          indicators_region
       )
     }
   ),
