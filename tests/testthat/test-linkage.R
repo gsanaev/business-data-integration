@@ -266,6 +266,118 @@ testthat::test_that(
 
 
 testthat::test_that(
+  "similarity decisions distinguish match ambiguity and low score",
+  {
+    ranked_candidates <-
+      tibble::tibble(
+        source_record_id =
+          c(
+            "E001",
+            "E001",
+            "E002",
+            "E002",
+            "E003"
+          ),
+        register_id =
+          c(
+            "R001",
+            "R002",
+            "R003",
+            "R004",
+            "R005"
+          ),
+        canonical_firm_id =
+          c(
+            "C000001",
+            "C000002",
+            "C000003",
+            "C000004",
+            "C000005"
+          ),
+        similarity_score =
+          c(
+            0.95,
+            0.70,
+            0.90,
+            0.88,
+            0.70
+          ),
+        candidate_rank =
+          c(
+            1L,
+            2L,
+            1L,
+            2L,
+            1L
+          )
+      )
+
+    result <-
+      decide_similarity_candidates(
+        ranked_candidates =
+          ranked_candidates,
+        score_threshold =
+          0.85,
+        margin_threshold =
+          0.05
+      )
+
+    matched <-
+      result %>%
+      dplyr::filter(
+        .data$source_record_id ==
+          "E001"
+      )
+
+    ambiguous <-
+      result %>%
+      dplyr::filter(
+        .data$source_record_id ==
+          "E002"
+      )
+
+    low_score <-
+      result %>%
+      dplyr::filter(
+        .data$source_record_id ==
+          "E003"
+      )
+
+    testthat::expect_equal(
+      matched$similarity_status,
+      "matched_similarity"
+    )
+
+    testthat::expect_equal(
+      matched$similarity_margin,
+      0.25
+    )
+
+    testthat::expect_equal(
+      ambiguous$similarity_status,
+      "review_required_similarity_ambiguous"
+    )
+
+    testthat::expect_equal(
+      ambiguous$similarity_margin,
+      0.02,
+      tolerance = 1e-12
+    )
+
+    testthat::expect_equal(
+      low_score$similarity_status,
+      "unmatched_low_similarity"
+    )
+
+    testthat::expect_equal(
+      low_score$similarity_margin,
+      0.70
+    )
+  }
+)
+
+
+testthat::test_that(
   "missing postcode contributes zero evidence without making score missing",
   {
     candidate <-
