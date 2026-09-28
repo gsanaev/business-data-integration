@@ -994,3 +994,35 @@ run_downstream_scenario_evaluation <- function(
       )
   )
 }
+
+
+run_downstream_scenario_evaluations <- function(
+  operational_sources,
+  linkage_records,
+  validation_config,
+  scenario_names
+) {
+  results <-
+    lapply(
+      scenario_names,
+      function(
+        scenario_name
+      ) {
+        run_downstream_scenario_evaluation(
+          operational_sources =
+            operational_sources[[scenario_name]],
+          linkage_records =
+            linkage_records,
+          validation_config =
+            validation_config,
+          scenario_name =
+            scenario_name
+        )
+      }
+    )
+
+  names(results) <-
+    scenario_names
+
+  results
+}

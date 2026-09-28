@@ -647,41 +647,20 @@ list(
 
   tar_target(
     heldout_downstream_scenario_results,
-    {
-      scenario_names <-
+    run_downstream_scenario_evaluations(
+      operational_sources =
+        scenario_operational_sources,
+      linkage_records =
+        heldout_complete_linkage_records,
+      validation_config =
+        project_config$processing$validation,
+      scenario_names =
         c(
           "baseline",
           "moderate",
           "difficult"
         )
-
-      validation_config <-
-        project_config$processing$validation
-
-      results <-
-        lapply(
-          scenario_names,
-          function(
-            scenario_name
-          ) {
-            run_downstream_scenario_evaluation(
-              operational_sources =
-                scenario_operational_sources[[scenario_name]],
-              linkage_records =
-                heldout_complete_linkage_records,
-              validation_config =
-                validation_config,
-              scenario_name =
-                scenario_name
-            )
-          }
-        )
-
-      names(results) <-
-        scenario_names
-
-      results
-    }
+    )
   ),
 
   tar_target(
