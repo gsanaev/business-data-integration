@@ -14,15 +14,14 @@ tar_option_set(
 
 tar_source(
   files = c(
-    "R/helpers/plausibility.R",
-    "R/helpers/synthetic_identity.R",
-    "R/helpers/linkage_similarity.R",
+    "R/plausibility.R",
+    "R/synthetic_identity.R",
+    "R/linkage_similarity.R",
     "R/config.R",
     "R/synthetic.R",
     "R/validation.R",
     "R/linkage_candidates.R",
     "R/linkage_features.R",
-    "R/linkage_similarity.R",
     "R/linkage_ml_candidates.R",
     "R/linkage_ml_cv.R",
     "R/linkage_ml_rf.R",

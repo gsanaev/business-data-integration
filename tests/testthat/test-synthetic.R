@@ -12,7 +12,6 @@ source(
     "..",
     "..",
     "R",
-    "helpers",
     "synthetic_identity.R"
   ),
   local = TRUE

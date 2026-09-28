@@ -18,7 +18,6 @@ project_path <- function(...) {
 source(
   project_path(
     "R",
-    "helpers",
     "plausibility.R"
   ),
   local = TRUE

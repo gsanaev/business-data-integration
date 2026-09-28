@@ -7,16 +7,6 @@ source(
     "..",
     "..",
     "R",
-    "helpers",
-    "linkage_similarity.R"
-  )
-)
-
-source(
-  testthat::test_path(
-    "..",
-    "..",
-    "R",
     "linkage_candidates.R"
   )
 )

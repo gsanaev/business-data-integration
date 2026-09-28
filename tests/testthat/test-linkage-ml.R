@@ -12,7 +12,6 @@ source(
     "..",
     "..",
     "R",
-    "helpers",
     "linkage_similarity.R"
   ),
   local = TRUE

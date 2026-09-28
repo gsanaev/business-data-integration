@@ -196,7 +196,7 @@ For unresolved cases, the workflow must rely on observable enterprise characteri
 
 ## 🔧 2. Validation & Statistical Editing
 
-`R/02_clean_and_validate_data.R` validates each source independently before integration.
+`R/validation.R` validates each source independently before integration.
 
 Quality treatment is represented through explicit statuses:
 
@@ -257,7 +257,7 @@ This illustrates the distinction between having an available imputation method a
 
 ## 🔗 3. Enterprise Record Linkage
 
-`R/03_link_sources.R` links source-specific enterprise records to canonical register enterprises.
+The linkage modules under `R/` link source-specific enterprise records to canonical register enterprises.
 
 The linkage procedure follows a transparent hierarchy.
 
@@ -378,7 +378,7 @@ The source-contract layer therefore acts as a conceptual control before numerica
 
 ### Canonical Integration
 
-`R/04_integrate_sources.R` combines linked source records using canonical enterprise identifiers.
+`R/integration.R` combines linked source records using canonical enterprise identifiers.
 
 The monthly analytical panel contains:
 
@@ -396,7 +396,7 @@ This preserves the statistical meaning of variables with different reporting fre
 
 ### Cross-Source Coherence
 
-`R/05_check_coherence.R` evaluates three conceptually aligned comparisons:
+`R/coherence.R` evaluates three conceptually aligned comparisons:
 
 1. annual statistical turnover vs. annual accounting operating revenue,
 2. 2024 annual turnover vs. register-style prior-year revenue,
@@ -449,7 +449,7 @@ This demonstrates a selective review strategy rather than treating every statist
 
 ## 📊 6. Annual Indicator Production
 
-`R/06_compute_indicators.R` transforms monthly observations into enterprise-year measures.
+`R/enterprise_year.R` and `R/indicators.R` transform monthly observations into enterprise-year measures and aggregate indicators.
 
 Annual indicators require complete monthly coverage.
 
@@ -558,13 +558,9 @@ data/truth/
 
 Generated truth CSV files are ignored by Git.
 
-Operational scripts `02`–`07` do not use these truth datasets.
+Operational processing targets do not use these truth datasets for linkage, validation, integration, coherence checking, or indicator construction.
 
-Evaluation is performed separately:
-
-```bash
-Rscript evaluation/evaluate_methods.R
-```
+Synthetic-truth evaluation is implemented through dedicated evaluation targets in `_targets.R`.
 
 This separation prevents evaluation information from influencing operational processing.
 
@@ -591,12 +587,7 @@ Only observations actually imputed by the operational workflow are evaluated.
 
 Missing register employment does not appear in the imputation evaluation because these observations are routed to review rather than imputed.
 
-Aggregate evaluation outputs are committed under:
-
-```text
-output/tables/linkage_evaluation.csv
-output/tables/imputation_evaluation.csv
-```
+Selected reproducible evaluation outputs are produced through the `targets` workflow and retained under `output/` where appropriate.
 
 ---
 
@@ -613,25 +604,21 @@ business-data-integration/
 │   ├── processed/        # linked and analysis-ready data
 │   └── truth/            # generated hidden truth for evaluation
 │
-├── evaluation/
-│   └── evaluate_methods.R
-│
 ├── output/
 │   ├── figures/          # selected reproducible figures
 │   └── tables/           # selected aggregate outputs
 │
 ├── R/
-│   ├── 01_generate_synthetic_data.R
-│   ├── 02_clean_and_validate_data.R
-│   ├── 03_link_sources.R
-│   ├── 04_integrate_sources.R
-│   ├── 05_check_coherence.R
-│   ├── 06_compute_indicators.R
-│   ├── 07_visualize_results.R
-│   └── helpers/
-│       ├── linkage_similarity.R
-│       ├── plausibility.R
-│       └── synthetic_identity.R
+│   ├── synthetic.R
+│   ├── validation.R
+│   ├── linkage_*.R
+│   ├── integration.R
+│   ├── enterprise_year.R
+│   ├── indicators.R
+│   ├── coherence.R
+│   ├── evaluation_*.R
+│   ├── downstream_evaluation.R
+│   └── reporting.R
 │
 ├── tests/
 │   ├── helpers/
@@ -678,18 +665,12 @@ Check its state:
 renv::status()
 ```
 
-### Run the Operational Workflow
+### Run the Workflow
 
 From the project root:
 
 ```bash
-Rscript R/01_generate_synthetic_data.R
-Rscript R/02_clean_and_validate_data.R
-Rscript R/03_link_sources.R
-Rscript R/04_integrate_sources.R
-Rscript R/05_check_coherence.R
-Rscript R/06_compute_indicators.R
-Rscript R/07_visualize_results.R
+Rscript -e 'targets::tar_make()'
 ```
 
 ### Run Automated Tests
@@ -698,11 +679,9 @@ Rscript R/07_visualize_results.R
 Rscript tests/run_tests.R
 ```
 
-### Run Synthetic-Truth Evaluation
+### Synthetic-Truth Evaluation
 
-```bash
-Rscript evaluation/evaluate_methods.R
-```
+Synthetic-truth evaluation is part of the reproducible `targets` workflow above.
 
 Generated datasets appear under:
 

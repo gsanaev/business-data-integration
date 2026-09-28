@@ -12,17 +12,6 @@ source(
     "..",
     "..",
     "R",
-    "helpers",
-    "linkage_similarity.R"
-  ),
-  local = TRUE
-)
-
-source(
-  testthat::test_path(
-    "..",
-    "..",
-    "R",
     "linkage_candidates.R"
   ),
   local = TRUE

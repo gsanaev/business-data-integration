@@ -52,15 +52,3 @@ interpolate_series <- function(index, values) {
     rule = 1
   )$y
 }
-
-
-# Relative difference for comparisons between two positive quantities.
-relative_difference <- function(x, y) {
-  denominator <- pmax(abs(x), abs(y))
-
-  ifelse(
-    is.na(x) | is.na(y) | denominator == 0,
-    NA_real_,
-    abs(x - y) / denominator
-  )
-}

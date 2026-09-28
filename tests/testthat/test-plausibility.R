@@ -8,7 +8,6 @@ source(
     "..",
     "..",
     "R",
-    "helpers",
     "plausibility.R"
   ),
   local = TRUE
@@ -143,51 +142,5 @@ testthat::test_that("interpolate_series interpolates only internal gaps", {
       complete_series
     ),
     complete_series
-  )
-})
-
-
-testthat::test_that("relative_difference follows the existing v2 definition", {
-  testthat::expect_equal(
-    relative_difference(
-      100,
-      90
-    ),
-    0.1
-  )
-
-  testthat::expect_equal(
-    relative_difference(
-      c(
-        100,
-        50
-      ),
-      c(
-        90,
-        50
-      )
-    ),
-    c(
-      0.1,
-      0
-    )
-  )
-
-  testthat::expect_true(
-    is.na(
-      relative_difference(
-        NA_real_,
-        100
-      )
-    )
-  )
-
-  testthat::expect_true(
-    is.na(
-      relative_difference(
-        0,
-        0
-      )
-    )
   )
 })
