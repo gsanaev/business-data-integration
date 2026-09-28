@@ -1034,37 +1034,7 @@ list(
       integration_files
       config_files
 
-      coherence_rules_config <-
-        project_config$coherence_rules
-
-      materiality_config <-
-        project_config$processing$coherence$materiality
-
-      threshold_revenue_accounting <-
-        get_coherence_threshold(
-          "COH_REV_ACCOUNTING",
-          coherence_rules_config
-        )
-
-      threshold_revenue_register <-
-        get_coherence_threshold(
-          "COH_REV_REGISTER",
-          coherence_rules_config
-        )
-
-      threshold_employment_register <-
-        get_coherence_threshold(
-          "COH_EMP_REGISTER",
-          coherence_rules_config
-        )
-
       required_months <- 12L
-
-      materiality_medium_percentile <-
-        materiality_config$medium_percentile
-
-      materiality_high_percentile <-
-        materiality_config$high_percentile
 
       panel <-
         read_csv(
@@ -1091,88 +1061,19 @@ list(
           )
         )
 
-      assert_comparable_group(
-        "turnover",
-        "turnover",
-        "accounting",
-        "operating_revenue",
-        "annual_revenue_related",
-        contracts
-      )
-
-      assert_comparable_group(
-        "turnover",
-        "turnover",
-        "register",
-        "revenue_last_year",
-        "annual_revenue_related",
-        contracts
-      )
-
-      assert_comparable_group(
-        "employment",
-        "employees",
-        "register",
-        "employees",
-        "employment",
-        contracts
-      )
-
-      annual_panel <-
-        build_coherence_annual_panel(
+      build_coherence_results(
+        panel =
           panel,
+        accounting =
+          accounting,
+        contracts =
+          contracts,
+        coherence_rules_config =
+          project_config$coherence_rules,
+        materiality_config =
+          project_config$processing$coherence$materiality,
+        required_months =
           required_months
-        )
-
-      validate_coherence_annual_panel(
-        annual_panel
-      )
-
-      revenue_accounting_events <-
-        build_revenue_accounting_events(
-          annual_panel,
-          accounting,
-          required_months,
-          threshold_revenue_accounting,
-          materiality_medium_percentile,
-          materiality_high_percentile
-        )
-
-      revenue_register_events <-
-        build_revenue_register_events(
-          annual_panel,
-          required_months,
-          threshold_revenue_register,
-          materiality_medium_percentile,
-          materiality_high_percentile
-        )
-
-      employment_register_events <-
-        build_employment_register_events(
-          annual_panel,
-          required_months,
-          threshold_employment_register,
-          materiality_medium_percentile,
-          materiality_high_percentile
-        )
-
-      coherence_events <-
-        combine_coherence_events(
-          revenue_accounting_events,
-          revenue_register_events,
-          employment_register_events,
-          accounting,
-          annual_panel
-        )
-
-      review_queue <-
-        build_coherence_review_queue(
-          coherence_events
-        )
-
-      list(
-        events = coherence_events,
-        review_queue = review_queue
       )
     }
   ),
