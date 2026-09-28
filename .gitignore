@@ -74,3 +74,6 @@ output/*
 
 # Windows
 Thumbs.db
+
+# targets pipeline cache
+_targets/

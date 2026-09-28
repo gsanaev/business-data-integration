@@ -1,0 +1,2045 @@
+# =====================================================================
+# synthetic.R
+# Synthetic-data generation helper functions
+# ---------------------------------------------------------------------
+# Extracted during v3 modularization.
+# Function behavior is intentionally unchanged at this stage.
+# =====================================================================
+
+normalize_mean_one <- function(x) {
+  x / mean(x)
+}
+
+create_synthetic_reference_structures <- function() {
+  regions <- tibble(
+    region_code = sprintf("R%02d", 1:10),
+    region_name = paste("Region", 1:10)
+  )
+
+  industry_params <- tibble(
+    nace_code = c(
+      "G47",
+      "C10",
+      "C29",
+      "H49",
+      "I55",
+      "I56"
+    ),
+    industry_name = c(
+      "Retail Trade",
+      "Food Manufacturing",
+      "Automotive Manufacturing",
+      "Land Transport",
+      "Accommodation",
+      "Food & Beverage Services"
+    ),
+    employment_center = c(
+      18,
+      35,
+      70,
+      28,
+      20,
+      15
+    ),
+    turnover_per_employee = c(
+      180000,
+      140000,
+      210000,
+      120000,
+      110000,
+      90000
+    ),
+    employment_growth_mean = c(
+      0.015,
+      0.010,
+      0.008,
+      0.012,
+      0.020,
+      0.018
+    ),
+    productivity_growth_mean = c(
+      0.035,
+      0.030,
+      0.030,
+      0.025,
+      0.040,
+      0.035
+    )
+  )
+
+  legal_forms <- tibble(
+    legal_form = c(
+      "AG",
+      "GmbH",
+      "KG",
+      "OHG",
+      "Einzelunternehmen"
+    )
+  )
+
+  list(
+    regions = regions,
+    industry_params = industry_params,
+    legal_forms = legal_forms
+  )
+}
+
+
+generate_latent_enterprises <- function(
+  regions,
+  industry_params,
+  legal_forms,
+  n_firms
+) {
+  tibble(
+    truth_firm_id =
+      sprintf(
+        "F%05d",
+        1:n_firms
+      ),
+
+    region_code =
+      sample(
+        regions$region_code,
+        n_firms,
+        replace = TRUE
+      ),
+
+    nace_code =
+      sample(
+        industry_params$nace_code,
+        n_firms,
+        replace = TRUE
+      ),
+
+    legal_form =
+      sample(
+        legal_forms$legal_form,
+        n_firms,
+        replace = TRUE
+      ),
+
+    foundation_year =
+      sample(
+        1965:2022,
+        n_firms,
+        replace = TRUE
+      )
+  ) %>%
+    left_join(
+      industry_params,
+      by = "nace_code"
+    ) %>%
+    mutate(
+      baseline_employment = pmax(
+        1,
+        round(
+          rlnorm(
+            n(),
+            meanlog = log(
+              employment_center
+            ),
+            sdlog = 0.65
+          )
+        )
+      ),
+
+      firm_productivity_factor =
+        rlnorm(
+          n(),
+          meanlog = 0,
+          sdlog = 0.30
+        ),
+
+      employment_growth_rate =
+        pmin(
+          0.12,
+          pmax(
+            -0.08,
+            rnorm(
+              n(),
+              mean =
+                employment_growth_mean,
+              sd = 0.025
+            )
+          )
+        ),
+
+      productivity_growth_rate =
+        pmin(
+          0.12,
+          pmax(
+            -0.06,
+            rnorm(
+              n(),
+              mean =
+                productivity_growth_mean,
+              sd = 0.025
+            )
+          )
+        ),
+
+      turnover_per_employee_2023 =
+        turnover_per_employee *
+          firm_productivity_factor
+    )
+}
+
+
+generate_annual_latent_states <- function(
+  firm_truth,
+  years
+) {
+  expand_grid(
+    truth_firm_id =
+      firm_truth$truth_firm_id,
+    year =
+      years
+  ) %>%
+    left_join(
+      firm_truth,
+      by = "truth_firm_id"
+    ) %>%
+    mutate(
+      years_since_2023 =
+        year - 2023L,
+
+      employment_noise =
+        exp(
+          rnorm(
+            n(),
+            mean = 0,
+            sd = 0.015
+          )
+        ),
+
+      employees_true =
+        pmax(
+          1,
+          round(
+            baseline_employment *
+              (1 + employment_growth_rate)^
+                years_since_2023 *
+              employment_noise
+          )
+        ),
+
+      productivity_noise =
+        exp(
+          rnorm(
+            n(),
+            mean = 0,
+            sd = 0.020
+          )
+        ),
+
+      turnover_per_employee_true =
+        turnover_per_employee_2023 *
+          (1 + productivity_growth_rate)^
+            years_since_2023 *
+          productivity_noise,
+
+      annual_turnover_true =
+        round(
+          employees_true *
+            turnover_per_employee_true,
+          2
+        )
+    )
+}
+
+generate_register_source <- function(
+  annual_truth
+) {
+  register_2025 <-
+    annual_truth %>%
+    filter(
+      year == 2025
+    ) %>%
+    transmute(
+      truth_firm_id,
+      region_code,
+      nace_code,
+      legal_form,
+      foundation_year,
+      employees_true_2025 =
+        employees_true
+    )
+
+  revenue_2024 <-
+    annual_truth %>%
+    filter(
+      year == 2024
+    ) %>%
+    transmute(
+      truth_firm_id,
+      revenue_true_2024 =
+        annual_turnover_true
+    )
+
+  firms <-
+    register_2025 %>%
+    left_join(
+      revenue_2024,
+      by = "truth_firm_id"
+    ) %>%
+    mutate(
+      register_reference_year =
+        2025L,
+
+      revenue_reference_year =
+        2024L,
+
+      employees =
+        pmax(
+          1,
+          round(
+            employees_true_2025 *
+              exp(
+                rnorm(
+                  n(),
+                  mean = 0,
+                  sd = 0.030
+                )
+              )
+          )
+        ),
+
+      revenue_last_year =
+        round(
+          revenue_true_2024 *
+            exp(
+              rnorm(
+                n(),
+                mean = 0,
+                sd = 0.040
+              )
+            ),
+          2
+        )
+    ) %>%
+    select(
+      truth_firm_id,
+      region_code,
+      nace_code,
+      legal_form,
+      employees,
+      foundation_year,
+      revenue_last_year,
+      register_reference_year,
+      revenue_reference_year
+    )
+
+  firms %>%
+    mutate(
+      employees_register_complete =
+        employees,
+
+      revenue_last_year_complete =
+        revenue_last_year,
+
+      employees =
+        ifelse(
+          runif(n()) < 0.02,
+          NA,
+          employees
+        ),
+
+      revenue_last_year =
+        ifelse(
+          runif(n()) < 0.02,
+          -revenue_last_year,
+          revenue_last_year
+        )
+    )
+}
+
+
+create_monthly_reference_profiles <- function() {
+  months <- seq.Date(
+    from = as.Date("2023-01-01"),
+    to = as.Date("2025-12-01"),
+    by = "month"
+  )
+
+  employment_seasonality <- list(
+    G47 = c(
+      1.00, 0.98, 1.00, 1.02, 1.04, 1.05,
+      1.06, 1.07, 1.08, 1.10, 1.18, 1.25
+    ),
+    C10 = c(
+      1.00, 1.00, 1.01, 1.01, 1.02, 1.02,
+      1.03, 1.00, 1.00, 1.01, 1.01, 1.02
+    ),
+    C29 = c(
+      1.00, 1.00, 1.00, 1.02, 1.02, 1.03,
+      1.03, 0.80, 1.00, 1.02, 1.03, 1.05
+    ),
+    H49 = c(
+      1.00, 1.01, 1.01, 1.02, 1.03, 1.05,
+      1.07, 1.06, 1.05, 1.03, 1.02, 1.01
+    ),
+    I55 = c(
+      0.70, 0.75, 0.90, 1.10, 1.40, 1.60,
+      1.80, 1.70, 1.40, 1.10, 0.80, 0.70
+    ),
+    I56 = c(
+      0.85, 0.90, 0.95, 1.05, 1.15, 1.20,
+      1.30, 1.25, 1.10, 1.00, 0.95, 0.90
+    )
+  )
+
+  employment_seasonality <-
+    lapply(
+      employment_seasonality,
+      normalize_mean_one
+    )
+
+  turnover_seasonality <- list(
+    G47 = c(
+      0.86, 0.84, 0.88, 0.91, 0.94, 0.96,
+      0.98, 0.97, 1.00, 1.06, 1.24, 1.46
+    ),
+    C10 = c(
+      0.97, 0.98, 1.00, 1.02, 1.03, 1.04,
+      1.02, 0.97, 1.00, 1.03, 1.04, 0.90
+    ),
+    C29 = c(
+      0.96, 0.99, 1.02, 1.04, 1.05, 1.06,
+      1.02, 0.74, 1.05, 1.09, 1.10, 0.88
+    ),
+    H49 = c(
+      0.93, 0.95, 0.98, 1.01, 1.04, 1.07,
+      1.10, 1.09, 1.06, 1.02, 0.98, 0.94
+    ),
+    I55 = c(
+      0.61, 0.66, 0.82, 1.06, 1.34, 1.57,
+      1.74, 1.66, 1.34, 1.04, 0.76, 0.60
+    ),
+    I56 = c(
+      0.82, 0.87, 0.93, 1.04, 1.13, 1.20,
+      1.27, 1.23, 1.09, 1.02, 0.96, 0.88
+    )
+  )
+
+  turnover_seasonality <-
+    lapply(
+      turnover_seasonality,
+      normalize_mean_one
+    )
+
+  list(
+    months = months,
+    employment_seasonality =
+      employment_seasonality,
+    turnover_seasonality =
+      turnover_seasonality
+  )
+}
+
+generate_monthly_employment <- function(
+  firm_truth,
+  annual_truth,
+  months,
+  employment_seasonality
+) {
+  expand_grid(
+    truth_firm_id =
+      firm_truth$truth_firm_id,
+    month =
+      months
+  ) %>%
+    mutate(
+      year =
+        as.integer(
+          format(
+            month,
+            "%Y"
+          )
+        ),
+
+      month_num =
+        as.integer(
+          format(
+            month,
+            "%m"
+          )
+        )
+    ) %>%
+    left_join(
+      annual_truth %>%
+        select(
+          truth_firm_id,
+          year,
+          employees_true
+        ),
+      by = c(
+        "truth_firm_id",
+        "year"
+      )
+    ) %>%
+    left_join(
+      firm_truth %>%
+        select(
+          truth_firm_id,
+          nace_code,
+          region_code
+        ),
+      by = "truth_firm_id"
+    ) %>%
+    mutate(
+      seasonal_factor =
+        mapply(
+          function(code, m) {
+            employment_seasonality[[code]][m]
+          },
+          nace_code,
+          month_num
+        ),
+
+      monthly_noise =
+        exp(
+          rnorm(
+            n(),
+            mean = 0,
+            sd = 0.020
+          )
+        ),
+
+      employment_weight =
+        seasonal_factor *
+          monthly_noise
+    ) %>%
+    group_by(
+      truth_firm_id,
+      year
+    ) %>%
+    mutate(
+      employment_weight =
+        employment_weight /
+          mean(
+            employment_weight
+          ),
+
+      employees =
+        pmax(
+          1,
+          round(
+            employees_true *
+              employment_weight
+          )
+        )
+    ) %>%
+    ungroup() %>%
+    mutate(
+      employees_source_complete =
+        employees,
+
+      employees =
+        ifelse(
+          runif(n()) < 0.003,
+          round(
+            employees *
+              runif(
+                n(),
+                min = 1.8,
+                max = 2.8
+              )
+          ),
+          employees
+        ),
+
+      employees =
+        ifelse(
+          runif(n()) < 0.01,
+          NA,
+          employees
+        )
+    ) %>%
+    select(
+      truth_firm_id,
+      month,
+      nace_code,
+      region_code,
+      seasonal_factor,
+      employees_source_complete,
+      employees
+    )
+}
+
+
+generate_monthly_turnover <- function(
+  firm_truth,
+  annual_truth,
+  months,
+  turnover_seasonality
+) {
+  expand_grid(
+    truth_firm_id =
+      firm_truth$truth_firm_id,
+    month =
+      months
+  ) %>%
+    mutate(
+      year =
+        as.integer(
+          format(
+            month,
+            "%Y"
+          )
+        ),
+
+      month_num =
+        as.integer(
+          format(
+            month,
+            "%m"
+          )
+        )
+    ) %>%
+    left_join(
+      annual_truth %>%
+        select(
+          truth_firm_id,
+          year,
+          annual_turnover_true
+        ),
+      by = c(
+        "truth_firm_id",
+        "year"
+      )
+    ) %>%
+    left_join(
+      firm_truth %>%
+        select(
+          truth_firm_id,
+          nace_code,
+          region_code
+        ),
+      by = "truth_firm_id"
+    ) %>%
+    mutate(
+      seasonal_factor =
+        mapply(
+          function(code, m) {
+            turnover_seasonality[[code]][m]
+          },
+          nace_code,
+          month_num
+        ),
+
+      allocation_noise =
+        exp(
+          rnorm(
+            n(),
+            mean = 0,
+            sd = 0.040
+          )
+        ),
+
+      allocation_weight =
+        seasonal_factor *
+          allocation_noise
+    ) %>%
+    group_by(
+      truth_firm_id,
+      year
+    ) %>%
+    mutate(
+      monthly_share =
+        allocation_weight /
+          sum(
+            allocation_weight
+          ),
+
+      turnover_true =
+        annual_turnover_true *
+          monthly_share,
+
+      turnover =
+        round(
+          turnover_true *
+            exp(
+              rnorm(
+                n(),
+                mean = 0,
+                sd = 0.020
+              )
+            ),
+          2
+        )
+    ) %>%
+    ungroup() %>%
+    mutate(
+      turnover_source_complete =
+        turnover,
+
+      turnover =
+        ifelse(
+          runif(n()) < 0.002,
+          -turnover,
+          turnover
+        ),
+
+      turnover =
+        ifelse(
+          runif(n()) < 0.01,
+          NA,
+          turnover
+        )
+    ) %>%
+    select(
+      truth_firm_id,
+      month,
+      nace_code,
+      region_code,
+      turnover_source_complete,
+      turnover
+    )
+}
+
+create_enterprise_identity_truth <- function(
+  firm_truth,
+  regions
+) {
+  location_lookup <- tibble(
+    region_code =
+      regions$region_code,
+
+    city = c(
+      "Frankfurt am Main",
+      "Wiesbaden",
+      "Darmstadt",
+      "Mainz",
+      "Kassel",
+      "Mannheim",
+      "Heidelberg",
+      "Karlsruhe",
+      "Fulda",
+      "Giessen"
+    ),
+
+    postal_code = c(
+      "60311",
+      "65183",
+      "64283",
+      "55116",
+      "34117",
+      "68159",
+      "69117",
+      "76133",
+      "36037",
+      "35390"
+    )
+  )
+
+  name_prefixes <- c(
+    "Nordstern",
+    "Rheinblick",
+    "Mainwerk",
+    "Hansa",
+    "Bergtal",
+    "Westtor",
+    "Suedpark",
+    "Adler",
+    "Linden",
+    "Taunus",
+    "Neckar",
+    "Waldhof",
+    "Mittelrhein",
+    "Eichen",
+    "Silber",
+    "Kronen",
+    "Markt",
+    "Feldberg",
+    "Rosen",
+    "Central"
+  )
+
+  name_activities <- c(
+    "Handel",
+    "Logistik",
+    "Industrie",
+    "Technik",
+    "Produktion",
+    "Vertrieb",
+    "Transport",
+    "Lebensmittel",
+    "Bau & Service",
+    "Hotel",
+    "Gastronomie",
+    "Mobilitaet",
+    "Dienstleistungen",
+    "Versorgung",
+    "Werk"
+  )
+
+  street_names <- c(
+    "Hauptstrasse",
+    "Bahnhofstrasse",
+    "Industriestrasse",
+    "Marktstrasse",
+    "Rheinstrasse",
+    "Goethestrasse",
+    "Schillerstrasse",
+    "Gartenweg",
+    "Feldweg",
+    "Lindenweg"
+  )
+
+  firm_truth %>%
+    select(
+      truth_firm_id,
+      region_code,
+      nace_code,
+      legal_form,
+      foundation_year
+    ) %>%
+    left_join(
+      location_lookup,
+      by = "region_code"
+    ) %>%
+    mutate(
+      business_id =
+        sprintf(
+          "B%07d",
+          seq_len(n())
+        ),
+
+      legal_form_label =
+        case_when(
+          legal_form ==
+            "Einzelunternehmen" ~
+            "",
+
+          TRUE ~
+            legal_form
+        ),
+
+      enterprise_name =
+        trimws(
+          paste(
+            sample(
+              name_prefixes,
+              n(),
+              replace = TRUE
+            ),
+            sample(
+              name_activities,
+              n(),
+              replace = TRUE
+            ),
+            legal_form_label
+          )
+        ),
+
+      street =
+        paste(
+          sample(
+            street_names,
+            n(),
+            replace = TRUE
+          ),
+          sample(
+            1:180,
+            n(),
+            replace = TRUE
+          )
+        )
+    ) %>%
+    select(
+      -legal_form_label
+    )
+}
+
+
+generate_primary_source_identities <- function(
+  identity_truth,
+  n_firms,
+  missing_business_id_probability
+) {
+  register_identity <-
+    identity_truth %>%
+    transmute(
+      truth_firm_id,
+
+      register_id =
+        sample(
+          make_source_id(
+            "REG",
+            n_firms
+          )
+        ),
+
+      business_id,
+
+      enterprise_name =
+        perturb_company_name(
+          enterprise_name
+        ),
+
+      street =
+        perturb_street(
+          street
+        ),
+
+      postal_code,
+
+      city =
+        perturb_city(
+          city
+        )
+    )
+
+  employment_identity <-
+    identity_truth %>%
+    transmute(
+      truth_firm_id,
+
+      employment_source_id =
+        sample(
+          make_source_id(
+            "EMP",
+            n_firms
+          )
+        ),
+
+      business_id =
+        drop_identifier(
+          business_id,
+          probability = missing_business_id_probability
+        ),
+
+      enterprise_name =
+        perturb_company_name(
+          enterprise_name
+        ),
+
+      street =
+        perturb_street(
+          street
+        ),
+
+      postal_code,
+
+      city =
+        perturb_city(
+          city
+        ),
+
+      legal_form
+    )
+
+  turnover_identity <-
+    identity_truth %>%
+    transmute(
+      truth_firm_id,
+
+      turnover_source_id =
+        sample(
+          make_source_id(
+            "TUR",
+            n_firms
+          )
+        ),
+
+      business_id =
+        drop_identifier(
+          business_id,
+          probability = missing_business_id_probability
+        ),
+
+      enterprise_name =
+        perturb_company_name(
+          enterprise_name
+        ),
+
+      street =
+        perturb_street(
+          street
+        ),
+
+      postal_code,
+
+      city =
+        perturb_city(
+          city
+        ),
+
+      legal_form
+    )
+
+  list(
+    register = register_identity,
+    employment = employment_identity,
+    turnover = turnover_identity
+  )
+}
+
+
+generate_accounting_source <- function(
+  annual_truth
+) {
+  accounting_params <- tibble(
+    nace_code = c(
+      "G47",
+      "C10",
+      "C29",
+      "H49",
+      "I55",
+      "I56"
+    ),
+
+    accounting_revenue_factor = c(
+      1.01,
+      0.99,
+      1.02,
+      1.00,
+      0.98,
+      1.01
+    ),
+
+    purchases_share_center = c(
+      0.72,
+      0.58,
+      0.62,
+      0.45,
+      0.40,
+      0.48
+    ),
+
+    personnel_cost_per_employee = c(
+      38000,
+      45000,
+      55000,
+      42000,
+      34000,
+      32000
+    )
+  )
+
+  annual_truth %>%
+    select(
+      truth_firm_id,
+      year,
+      nace_code,
+      employees_true,
+      annual_turnover_true
+    ) %>%
+    left_join(
+      accounting_params,
+      by = "nace_code"
+    ) %>%
+    mutate(
+      reference_year =
+        year,
+
+      operating_revenue_complete =
+        round(
+          annual_turnover_true *
+            accounting_revenue_factor *
+            exp(
+              rnorm(
+                n(),
+                mean = 0,
+                sd = 0.020
+              )
+            ),
+          2
+        ),
+
+      purchases_share =
+        pmin(
+          0.85,
+          pmax(
+            0.20,
+            purchases_share_center +
+              rnorm(
+                n(),
+                mean = 0,
+                sd = 0.025
+              )
+          )
+        ),
+
+      purchases_goods_services_complete =
+        round(
+          operating_revenue_complete *
+            purchases_share,
+          2
+        ),
+
+      personnel_expense_complete =
+        round(
+          employees_true *
+            personnel_cost_per_employee *
+            exp(
+              rnorm(
+                n(),
+                mean = 0,
+                sd = 0.030
+              )
+            ),
+          2
+        ),
+
+      operating_revenue =
+        ifelse(
+          runif(n()) < 0.01,
+          NA,
+          operating_revenue_complete
+        ),
+
+      purchases_goods_services =
+        ifelse(
+          runif(n()) < 0.005,
+          -purchases_goods_services_complete,
+          purchases_goods_services_complete
+        ),
+
+      personnel_expense =
+        ifelse(
+          runif(n()) < 0.01,
+          NA,
+          personnel_expense_complete
+        )
+    ) %>%
+    select(
+      truth_firm_id,
+      reference_year,
+      nace_code,
+      operating_revenue_complete,
+      purchases_goods_services_complete,
+      personnel_expense_complete,
+      operating_revenue,
+      purchases_goods_services,
+      personnel_expense
+    )
+}
+
+
+generate_accounting_identity <- function(
+  identity_truth,
+  n_firms,
+  missing_business_id_probability
+) {
+  identity_truth %>%
+    transmute(
+      truth_firm_id,
+
+      accounting_source_id =
+        sample(
+          make_source_id(
+            "ACC",
+            n_firms
+          )
+        ),
+
+      business_id =
+        drop_identifier(
+          business_id,
+          probability = missing_business_id_probability
+        ),
+
+      enterprise_name =
+        perturb_company_name(
+          enterprise_name
+        ),
+
+      street =
+        perturb_street(
+          street
+        ),
+
+      postal_code,
+
+      city =
+        perturb_city(
+          city
+        ),
+
+      legal_form,
+      nace_code
+    )
+}
+
+attach_synthetic_source_identities <- function(
+  firms_inconsistent,
+  employment,
+  turnover,
+  accounting,
+  register_identity,
+  employment_identity,
+  turnover_identity,
+  accounting_identity
+) {
+  firms_with_identity <-
+    firms_inconsistent %>%
+    left_join(
+      register_identity,
+      by = "truth_firm_id"
+    )
+
+  employment_with_identity <-
+    employment %>%
+    left_join(
+      employment_identity,
+      by = "truth_firm_id"
+    )
+
+  turnover_with_identity <-
+    turnover %>%
+    left_join(
+      turnover_identity,
+      by = "truth_firm_id"
+    )
+
+  accounting_with_identity <-
+    accounting %>%
+    left_join(
+      accounting_identity,
+      by = c(
+        "truth_firm_id",
+        "nace_code"
+      )
+    )
+
+  list(
+    firms = firms_with_identity,
+    employment = employment_with_identity,
+    turnover = turnover_with_identity,
+    accounting = accounting_with_identity
+  )
+}
+
+
+build_operational_synthetic_sources <- function(
+  attached_sources
+) {
+  firms_operational <-
+    attached_sources$firms %>%
+    select(
+      register_id,
+      business_id,
+      enterprise_name,
+      street,
+      postal_code,
+      city,
+      region_code,
+      nace_code,
+      legal_form,
+      employees,
+      foundation_year,
+      revenue_last_year,
+      register_reference_year,
+      revenue_reference_year
+    )
+
+  employment_operational <-
+    attached_sources$employment %>%
+    select(
+      employment_source_id,
+      business_id,
+      enterprise_name,
+      street,
+      postal_code,
+      city,
+      legal_form,
+      month,
+      nace_code,
+      region_code,
+      seasonal_factor,
+      employees
+    )
+
+  turnover_operational <-
+    attached_sources$turnover %>%
+    select(
+      turnover_source_id,
+      business_id,
+      enterprise_name,
+      street,
+      postal_code,
+      city,
+      legal_form,
+      month,
+      nace_code,
+      region_code,
+      turnover
+    )
+
+  accounting_operational <-
+    attached_sources$accounting %>%
+    select(
+      accounting_source_id,
+      business_id,
+      enterprise_name,
+      street,
+      postal_code,
+      city,
+      legal_form,
+      reference_year,
+      nace_code,
+      operating_revenue,
+      purchases_goods_services,
+      personnel_expense
+    )
+
+  list(
+    firms = firms_operational,
+    employment = employment_operational,
+    turnover = turnover_operational,
+    accounting = accounting_operational
+  )
+}
+
+
+build_enterprise_truth <- function(
+  identity_truth
+) {
+  identity_truth %>%
+    select(
+      truth_firm_id,
+      business_id,
+      enterprise_name,
+      street,
+      postal_code,
+      city,
+      region_code,
+      nace_code,
+      legal_form,
+      foundation_year
+    )
+}
+
+
+build_linkage_truth <- function(
+  register_identity,
+  employment_identity,
+  turnover_identity,
+  accounting_identity
+) {
+  bind_rows(
+    register_identity %>%
+      transmute(
+        source = "register",
+        source_record_id = register_id,
+        truth_firm_id
+      ),
+
+    employment_identity %>%
+      transmute(
+        source = "employment",
+        source_record_id =
+          employment_source_id,
+        truth_firm_id
+      ),
+
+    turnover_identity %>%
+      transmute(
+        source = "turnover",
+        source_record_id =
+          turnover_source_id,
+        truth_firm_id
+      ),
+
+    accounting_identity %>%
+      transmute(
+        source = "accounting",
+        source_record_id =
+          accounting_source_id,
+        truth_firm_id
+      )
+  )
+}
+
+
+build_value_truth <- function(
+  attached_sources
+) {
+  bind_rows(
+    attached_sources$firms %>%
+      transmute(
+        source = "register",
+        source_record_id = register_id,
+        truth_firm_id,
+        reference_period =
+          as.character(
+            register_reference_year
+          ),
+        variable = "employees",
+        truth_value =
+          as.numeric(
+            employees_register_complete
+          )
+      ),
+
+    attached_sources$firms %>%
+      transmute(
+        source = "register",
+        source_record_id = register_id,
+        truth_firm_id,
+        reference_period =
+          as.character(
+            revenue_reference_year
+          ),
+        variable = "revenue_last_year",
+        truth_value =
+          as.numeric(
+            revenue_last_year_complete
+          )
+      ),
+
+    attached_sources$employment %>%
+      transmute(
+        source = "employment",
+        source_record_id =
+          employment_source_id,
+        truth_firm_id,
+        reference_period =
+          format(
+            month,
+            "%Y-%m"
+          ),
+        variable = "employees",
+        truth_value =
+          as.numeric(
+            employees_source_complete
+          )
+      ),
+
+    attached_sources$turnover %>%
+      transmute(
+        source = "turnover",
+        source_record_id =
+          turnover_source_id,
+        truth_firm_id,
+        reference_period =
+          format(
+            month,
+            "%Y-%m"
+          ),
+        variable = "turnover",
+        truth_value =
+          as.numeric(
+            turnover_source_complete
+          )
+      ),
+
+    attached_sources$accounting %>%
+      transmute(
+        source = "accounting",
+        source_record_id =
+          accounting_source_id,
+        truth_firm_id,
+        reference_period =
+          as.character(
+            reference_year
+          ),
+        variable =
+          "operating_revenue",
+        truth_value =
+          as.numeric(
+            operating_revenue_complete
+          )
+      ),
+
+    attached_sources$accounting %>%
+      transmute(
+        source = "accounting",
+        source_record_id =
+          accounting_source_id,
+        truth_firm_id,
+        reference_period =
+          as.character(
+            reference_year
+          ),
+        variable =
+          "purchases_goods_services",
+        truth_value =
+          as.numeric(
+            purchases_goods_services_complete
+          )
+      ),
+
+    attached_sources$accounting %>%
+      transmute(
+        source = "accounting",
+        source_record_id =
+          accounting_source_id,
+        truth_firm_id,
+        reference_period =
+          as.character(
+            reference_year
+          ),
+        variable =
+          "personnel_expense",
+        truth_value =
+          as.numeric(
+            personnel_expense_complete
+          )
+      )
+  )
+}
+
+
+build_synthetic_truth_outputs <- function(
+  identity_truth,
+  register_identity,
+  employment_identity,
+  turnover_identity,
+  accounting_identity,
+  attached_sources
+) {
+  list(
+    enterprise =
+      build_enterprise_truth(
+        identity_truth
+      ),
+
+    linkage =
+      build_linkage_truth(
+        register_identity,
+        employment_identity,
+        turnover_identity,
+        accounting_identity
+      ),
+
+    value =
+      build_value_truth(
+        attached_sources
+      )
+  )
+}
+
+
+build_synthetic_baseline <- function(
+  project_config
+) {
+  # Preserve the verified v2/v3 baseline RNG sequence exactly.
+  set.seed(2025)
+
+  reference_structures <-
+    create_synthetic_reference_structures()
+
+  regions <-
+    reference_structures$regions
+
+  industry_params <-
+    reference_structures$industry_params
+
+  legal_forms <-
+    reference_structures$legal_forms
+
+  n_firms <- 1500L
+
+  baseline_scenario <-
+    project_config$scenarios$scenarios$baseline
+
+  firm_truth <-
+    generate_latent_enterprises(
+      regions,
+      industry_params,
+      legal_forms,
+      n_firms
+    )
+
+  years <- 2023:2025
+
+  annual_truth <-
+    generate_annual_latent_states(
+      firm_truth,
+      years
+    )
+
+  firms_inconsistent <-
+    generate_register_source(
+      annual_truth
+    )
+
+  monthly_reference <-
+    create_monthly_reference_profiles()
+
+  months <-
+    monthly_reference$months
+
+  employment_seasonality <-
+    monthly_reference$employment_seasonality
+
+  turnover_seasonality <-
+    monthly_reference$turnover_seasonality
+
+  employment <-
+    generate_monthly_employment(
+      firm_truth,
+      annual_truth,
+      months,
+      employment_seasonality
+    )
+
+  turnover <-
+    generate_monthly_turnover(
+      firm_truth,
+      annual_truth,
+      months,
+      turnover_seasonality
+    )
+
+  identity_truth <-
+    create_enterprise_identity_truth(
+      firm_truth,
+      regions
+    )
+
+  primary_identities <-
+    generate_primary_source_identities(
+      identity_truth,
+      n_firms,
+      baseline_scenario$missing_business_id
+    )
+
+  register_identity <-
+    primary_identities$register
+
+  employment_identity <-
+    primary_identities$employment
+
+  turnover_identity <-
+    primary_identities$turnover
+
+  accounting <-
+    generate_accounting_source(
+      annual_truth
+    )
+
+  accounting_identity <-
+    generate_accounting_identity(
+      identity_truth,
+      n_firms,
+      baseline_scenario$missing_business_id
+    )
+
+  attached_sources <-
+    attach_synthetic_source_identities(
+      firms_inconsistent,
+      employment,
+      turnover,
+      accounting,
+      register_identity,
+      employment_identity,
+      turnover_identity,
+      accounting_identity
+    )
+
+  operational_sources <-
+    build_operational_synthetic_sources(
+      attached_sources
+    )
+
+  truth_outputs <-
+    build_synthetic_truth_outputs(
+      identity_truth,
+      register_identity,
+      employment_identity,
+      turnover_identity,
+      accounting_identity,
+      attached_sources
+    )
+
+  list(
+    operational = operational_sources,
+    truth = truth_outputs,
+    attached_sources = attached_sources
+  )
+}
+
+
+additional_missing_probability <- function(
+  target_probability,
+  baseline_probability
+) {
+  if (
+    target_probability <=
+      baseline_probability
+  ) {
+    return(0)
+  }
+
+  if (
+    baseline_probability >= 1
+  ) {
+    stop(
+      "Baseline missing-ID probability must be below 1."
+    )
+  }
+
+  (
+    target_probability -
+      baseline_probability
+  ) /
+    (
+      1 -
+        baseline_probability
+    )
+}
+
+
+extract_scenario_identity_table <- function(
+  source_data
+) {
+  source_data %>%
+    distinct(
+      truth_firm_id,
+      business_id,
+      enterprise_name,
+      street,
+      postal_code,
+      city,
+      legal_form,
+      nace_code
+    )
+}
+
+
+replace_scenario_identity_table <- function(
+  source_data,
+  identity_table
+) {
+  identity_columns <- c(
+    "business_id",
+    "enterprise_name",
+    "street",
+    "postal_code",
+    "city",
+    "legal_form",
+    "nace_code"
+  )
+
+  source_data %>%
+    select(
+      -all_of(
+        identity_columns
+      )
+    ) %>%
+    left_join(
+      identity_table,
+      by = "truth_firm_id"
+    )
+}
+
+
+apply_identity_scenario_to_table <- function(
+  identity_table,
+  scenario,
+  baseline_scenario,
+  source_label
+) {
+  required_columns <- c(
+    "truth_firm_id",
+    "business_id",
+    "enterprise_name",
+    "street",
+    "postal_code",
+    "city",
+    "legal_form",
+    "nace_code"
+  )
+
+  missing_columns <-
+    setdiff(
+      required_columns,
+      names(identity_table)
+    )
+
+  if (
+    length(missing_columns) > 0L
+  ) {
+    stop(
+      "Identity table is missing required columns: ",
+      paste(
+        missing_columns,
+        collapse = ", "
+      )
+    )
+  }
+
+  out <-
+    identity_table
+
+  n <-
+    nrow(out)
+
+  additional_missing <-
+    additional_missing_probability(
+      scenario$missing_business_id,
+      baseline_scenario$missing_business_id
+    )
+
+  missing_flag <-
+    draw_scenario_flag(
+      n,
+      additional_missing
+    ) &
+      !is.na(
+        out$business_id
+      )
+
+  out$business_id[
+    missing_flag
+  ] <- NA_character_
+
+  available_share <-
+    1 -
+      scenario$missing_business_id
+
+  invalid_probability <-
+    if (
+      scenario$invalid_or_unknown_business_id == 0
+    ) {
+      0
+    } else {
+      scenario$invalid_or_unknown_business_id /
+        available_share
+    }
+
+  if (
+    invalid_probability > 1
+  ) {
+    stop(
+      "Invalid-ID probability is incompatible with missing-ID probability."
+    )
+  }
+
+  invalid_flag <-
+    draw_scenario_flag(
+      n,
+      invalid_probability
+    ) &
+      !is.na(
+        out$business_id
+      )
+
+  out$business_id <-
+    make_unknown_business_id(
+      out$business_id,
+      invalid_flag,
+      source_label
+    )
+
+  name_typo_flag <-
+    draw_scenario_flag(
+      n,
+      scenario$additional_name_typo
+    )
+
+  out$enterprise_name <-
+    introduce_name_typo(
+      out$enterprise_name,
+      name_typo_flag
+    )
+
+  name_degradation_flag <-
+    draw_scenario_flag(
+      n,
+      scenario$substantial_name_degradation
+    )
+
+  out$enterprise_name <-
+    degrade_company_name(
+      out$enterprise_name,
+      name_degradation_flag
+    )
+
+  street_flag <-
+    draw_scenario_flag(
+      n,
+      scenario$strong_street_discrepancy
+    )
+
+  out$street <-
+    create_strong_street_discrepancy(
+      out$street,
+      street_flag
+    )
+
+  postal_code_flag <-
+    draw_scenario_flag(
+      n,
+      scenario$postal_code_missing_or_error
+    )
+
+  out$postal_code <-
+    corrupt_postal_code(
+      out$postal_code,
+      postal_code_flag
+    )
+
+  nace_flag <-
+    draw_scenario_flag(
+      n,
+      scenario$nace_disagreement
+    )
+
+  out$nace_code <-
+    create_nace_disagreement(
+      out$nace_code,
+      nace_flag
+    )
+
+  legal_form_flag <-
+    draw_scenario_flag(
+      n,
+      scenario$legal_form_disagreement
+    )
+
+  out$legal_form <-
+    create_legal_form_disagreement(
+      out$legal_form,
+      legal_form_flag
+    )
+
+  corruption_log <-
+    tibble(
+      source =
+        source_label,
+
+      truth_firm_id =
+        out$truth_firm_id,
+
+      missing_business_id =
+        is.na(
+          out$business_id
+        ),
+
+      invalid_or_unknown_business_id =
+        invalid_flag,
+
+      additional_name_typo =
+        name_typo_flag,
+
+      substantial_name_degradation =
+        name_degradation_flag,
+
+      strong_street_discrepancy =
+        street_flag,
+
+      postal_code_missing_or_error =
+        postal_code_flag,
+
+      nace_disagreement =
+        nace_flag,
+
+      legal_form_disagreement =
+        legal_form_flag
+    )
+
+  list(
+    identity = out,
+    corruption_log =
+      corruption_log
+  )
+}
+
+
+apply_identity_scenario_to_sources <- function(
+  attached_sources,
+  scenario_name,
+  scenario,
+  baseline_scenario
+) {
+  employment_identity <-
+    extract_scenario_identity_table(
+      attached_sources$employment
+    )
+
+  turnover_identity <-
+    extract_scenario_identity_table(
+      attached_sources$turnover
+    )
+
+  accounting_identity <-
+    extract_scenario_identity_table(
+      attached_sources$accounting
+    )
+
+  employment_result <-
+    apply_identity_scenario_to_table(
+      employment_identity,
+      scenario,
+      baseline_scenario,
+      "employment"
+    )
+
+  turnover_result <-
+    apply_identity_scenario_to_table(
+      turnover_identity,
+      scenario,
+      baseline_scenario,
+      "turnover"
+    )
+
+  accounting_result <-
+    apply_identity_scenario_to_table(
+      accounting_identity,
+      scenario,
+      baseline_scenario,
+      "accounting"
+    )
+
+  corruption_log <-
+    bind_rows(
+      employment_result$corruption_log,
+      turnover_result$corruption_log,
+      accounting_result$corruption_log
+    ) %>%
+    mutate(
+      scenario =
+        scenario_name,
+      .before =
+        source
+    )
+
+  if (
+    identical(
+      scenario_name,
+      "baseline"
+    )
+  ) {
+    return(
+      list(
+        sources =
+          attached_sources,
+        corruption_log =
+          corruption_log
+      )
+    )
+  }
+
+  scenario_sources <-
+    attached_sources
+
+  scenario_sources$employment <-
+    replace_scenario_identity_table(
+      attached_sources$employment,
+      employment_result$identity
+    )
+
+  scenario_sources$turnover <-
+    replace_scenario_identity_table(
+      attached_sources$turnover,
+      turnover_result$identity
+    )
+
+  scenario_sources$accounting <-
+    replace_scenario_identity_table(
+      attached_sources$accounting,
+      accounting_result$identity
+    )
+
+  list(
+    sources =
+      scenario_sources,
+    corruption_log =
+      corruption_log
+  )
+}

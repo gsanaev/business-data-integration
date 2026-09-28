@@ -1,0 +1,22 @@
+schema_version: 1
+
+validation:
+  foundation_year_min: 1900
+  employment_spike_multiplier: 2.0
+
+linkage:
+  baseline_similarity:
+    score_threshold: 0.85
+    margin_threshold: 0.05
+    weights:
+      name_similarity: 0.40
+      street_similarity: 0.30
+      city_similarity: 0.05
+      postal_code_match: 0.10
+      legal_form_match: 0.075
+      nace_match: 0.075
+
+coherence:
+  materiality:
+    medium_percentile: 0.75
+    high_percentile: 0.90

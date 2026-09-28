@@ -1,0 +1,4 @@
+rule_id,left_source,left_variable,right_source,right_variable,comparability_group,expected_range_threshold
+COH_REV_ACCOUNTING,turnover,turnover,accounting,operating_revenue,annual_revenue_related,0.05
+COH_REV_REGISTER,turnover,turnover,register,revenue_last_year,annual_revenue_related,0.08
+COH_EMP_REGISTER,employment,employees,register,employees,employment,0.10
