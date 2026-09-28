@@ -36,6 +36,7 @@ tar_source(
     "R/evaluation_benchmark.R",
     "R/evaluation_policy.R",
     "R/evaluation_heldout.R",
+    "R/evaluation_orchestration.R",
     "R/reporting.R"
   ),
   change_directory = FALSE
@@ -324,67 +325,12 @@ list(
 
   tar_target(
     scenario_candidate_records,
-    {
-      source_specs <-
-        list(
-          employment =
-            "employment_source_id",
-          turnover =
-            "turnover_source_id",
-          accounting =
-            "accounting_source_id"
-        )
-
-      scenario_names <-
-        c(
-          "baseline",
-          "moderate",
-          "difficult"
-        )
-
-      results <-
-        list()
-
-      result_index <- 1L
-
-      for (
-        scenario_name in
-          scenario_names
-      ) {
-        scenario_sources <-
-          identity_scenarios[[scenario_name]]$sources
-
-        for (
-          source_name in
-            names(
-              source_specs
-            )
-        ) {
-          results[[result_index]] <-
-            evaluate_candidate_generation(
-              source_data =
-                scenario_sources[[source_name]],
-              source_id_column =
-                source_specs[[source_name]],
-              register_data =
-                scenario_sources$firms,
-              enterprise_split =
-                enterprise_split,
-              scenario_name =
-                scenario_name,
-              source_name =
-                source_name
-            )
-
-          result_index <-
-            result_index + 1L
-        }
-      }
-
-      bind_rows(
-        results
-      )
-    }
+    build_scenario_candidate_records(
+      identity_scenarios =
+        identity_scenarios,
+      enterprise_split =
+        enterprise_split
+    )
   ),
 
   tar_target(
@@ -396,75 +342,17 @@ list(
 
   tar_target(
     similarity_benchmark_records,
-    {
-      similarity_weights <-
+    build_scenario_similarity_records(
+      identity_scenarios =
+        identity_scenarios,
+      enterprise_split =
+        enterprise_split,
+      similarity_weights =
         unlist(
           project_config$processing$linkage$baseline_similarity$weights,
           use.names = TRUE
         )
-
-      source_specs <-
-        list(
-          employment =
-            "employment_source_id",
-          turnover =
-            "turnover_source_id",
-          accounting =
-            "accounting_source_id"
-        )
-
-      scenario_names <-
-        c(
-          "baseline",
-          "moderate",
-          "difficult"
-        )
-
-      results <-
-        list()
-
-      result_index <- 1L
-
-      for (
-        scenario_name in
-          scenario_names
-      ) {
-        scenario_sources <-
-          identity_scenarios[[scenario_name]]$sources
-
-        for (
-          source_name in
-            names(
-              source_specs
-            )
-        ) {
-          results[[result_index]] <-
-            build_similarity_benchmark_records(
-              source_data =
-                scenario_sources[[source_name]],
-              source_id_column =
-                source_specs[[source_name]],
-              register_data =
-                scenario_sources$firms,
-              enterprise_split =
-                enterprise_split,
-              scenario_name =
-                scenario_name,
-              source_name =
-                source_name,
-              similarity_weights =
-                similarity_weights
-            )
-
-          result_index <-
-            result_index + 1L
-        }
-      }
-
-      bind_rows(
-        results
-      )
-    }
+    )
   ),
 
   tar_target(
@@ -476,68 +364,12 @@ list(
 
   tar_target(
     ml_candidate_pairs_development,
-    {
-      source_specs <-
-        list(
-          employment =
-            "employment_source_id",
-          turnover =
-            "turnover_source_id",
-          accounting =
-            "accounting_source_id"
-        )
-
-      scenario_names <-
-        c(
-          "baseline",
-          "moderate",
-          "difficult"
-        )
-
-      results <-
-        list()
-
-      result_index <-
-        1L
-
-      for (
-        scenario_name in
-          scenario_names
-      ) {
-        scenario_sources <-
-          identity_scenarios[[scenario_name]]$sources
-
-        for (
-          source_name in
-            names(
-              source_specs
-            )
-        ) {
-          results[[result_index]] <-
-            build_ml_candidate_pairs(
-              source_data =
-                scenario_sources[[source_name]],
-              source_id_column =
-                source_specs[[source_name]],
-              register_data =
-                scenario_sources$firms,
-              enterprise_split =
-                enterprise_split,
-              scenario_name =
-                scenario_name,
-              source_name =
-                source_name
-            )
-
-          result_index <-
-            result_index + 1L
-        }
-      }
-
-      bind_rows(
-        results
-      )
-    }
+    build_scenario_ml_candidate_pairs(
+      identity_scenarios =
+        identity_scenarios,
+      enterprise_split =
+        enterprise_split
+    )
   ),
 
   tar_target(
@@ -744,71 +576,14 @@ list(
 
   tar_target(
     heldout_candidate_records,
-    {
-      source_specs <-
-        list(
-          employment =
-            "employment_source_id",
-          turnover =
-            "turnover_source_id",
-          accounting =
-            "accounting_source_id"
-        )
-
-      scenario_names <-
-        c(
-          "baseline",
-          "moderate",
-          "difficult"
-        )
-
-      results <-
-        list()
-
-      result_index <-
-        1L
-
-      for (
-        scenario_name in
-          scenario_names
-      ) {
-        scenario_sources <-
-          identity_scenarios[[scenario_name]]$sources
-
-        for (
-          source_name in
-            names(
-              source_specs
-            )
-        ) {
-          results[[result_index]] <-
-            evaluate_candidate_generation(
-              source_data =
-                scenario_sources[[source_name]],
-              source_id_column =
-                source_specs[[source_name]],
-              register_data =
-                scenario_sources$firms,
-              enterprise_split =
-                enterprise_split,
-              scenario_name =
-                scenario_name,
-              source_name =
-                source_name,
-              sample_role =
-                "heldout"
-            )
-
-          result_index <-
-            result_index +
-              1L
-        }
-      }
-
-      dplyr::bind_rows(
-        results
-      )
-    }
+    build_scenario_candidate_records(
+      identity_scenarios =
+        identity_scenarios,
+      enterprise_split =
+        enterprise_split,
+      sample_role =
+        "heldout"
+    )
   ),
 
   tar_target(
@@ -820,79 +595,19 @@ list(
 
   tar_target(
     heldout_similarity_records,
-    {
-      similarity_weights <-
+    build_scenario_similarity_records(
+      identity_scenarios =
+        identity_scenarios,
+      enterprise_split =
+        enterprise_split,
+      similarity_weights =
         unlist(
           project_config$processing$linkage$baseline_similarity$weights,
           use.names = TRUE
-        )
-
-      source_specs <-
-        list(
-          employment =
-            "employment_source_id",
-          turnover =
-            "turnover_source_id",
-          accounting =
-            "accounting_source_id"
-        )
-
-      scenario_names <-
-        c(
-          "baseline",
-          "moderate",
-          "difficult"
-        )
-
-      results <-
-        list()
-
-      result_index <-
-        1L
-
-      for (
-        scenario_name in
-          scenario_names
-      ) {
-        scenario_sources <-
-          identity_scenarios[[scenario_name]]$sources
-
-        for (
-          source_name in
-            names(
-              source_specs
-            )
-        ) {
-          results[[result_index]] <-
-            build_similarity_benchmark_records(
-              source_data =
-                scenario_sources[[source_name]],
-              source_id_column =
-                source_specs[[source_name]],
-              register_data =
-                scenario_sources$firms,
-              enterprise_split =
-                enterprise_split,
-              scenario_name =
-                scenario_name,
-              source_name =
-                source_name,
-              similarity_weights =
-                similarity_weights,
-              sample_role =
-                "heldout"
-            )
-
-          result_index <-
-            result_index +
-              1L
-        }
-      }
-
-      dplyr::bind_rows(
-        results
-      )
-    }
+        ),
+      sample_role =
+        "heldout"
+    )
   ),
 
   tar_target(
@@ -905,69 +620,14 @@ list(
   tar_target(
     ml_candidate_pairs_heldout,
     {
-      source_specs <-
-        list(
-          employment =
-            "employment_source_id",
-          turnover =
-            "turnover_source_id",
-          accounting =
-            "accounting_source_id"
-        )
-
-      scenario_names <-
-        c(
-          "baseline",
-          "moderate",
-          "difficult"
-        )
-
-      results <-
-        list()
-
-      result_index <-
-        1L
-
-      for (
-        scenario_name in
-          scenario_names
-      ) {
-        scenario_sources <-
-          identity_scenarios[[scenario_name]]$sources
-
-        for (
-          source_name in
-            names(
-              source_specs
-            )
-        ) {
-          results[[result_index]] <-
-            build_ml_candidate_pairs(
-              source_data =
-                scenario_sources[[source_name]],
-              source_id_column =
-                source_specs[[source_name]],
-              register_data =
-                scenario_sources$firms,
-              enterprise_split =
-                enterprise_split,
-              scenario_name =
-                scenario_name,
-              source_name =
-                source_name,
-              sample_role =
-                "heldout"
-            )
-
-          result_index <-
-            result_index +
-              1L
-        }
-      }
-
       candidate_pairs <-
-        dplyr::bind_rows(
-          results
+        build_scenario_ml_candidate_pairs(
+          identity_scenarios =
+            identity_scenarios,
+          enterprise_split =
+            enterprise_split,
+          sample_role =
+            "heldout"
         )
 
       validate_ml_candidate_pairs(
@@ -1072,81 +732,24 @@ list(
 
   tar_target(
     heldout_complete_linkage_records,
-    {
-      source_specs <-
-        list(
-          employment =
-            "employment_source_id",
-          turnover =
-            "turnover_source_id",
-          accounting =
-            "accounting_source_id"
-        )
-
-      scenario_names <-
-        c(
-          "baseline",
-          "moderate",
-          "difficult"
-        )
-
-      results <-
-        list()
-
-      result_index <-
-        1L
-
-      for (
-        scenario_name in
-          scenario_names
-      ) {
-        scenario_sources <-
-          identity_scenarios[[scenario_name]]$sources
-
-        for (
-          source_name in
-            names(
-              source_specs
-            )
-        ) {
-          results[[result_index]] <-
-            build_complete_linkage_evaluation_records(
-              source_data =
-                scenario_sources[[source_name]],
-              source_id_column =
-                source_specs[[source_name]],
-              register_data =
-                scenario_sources$firms,
-              enterprise_split =
-                enterprise_split,
-              scenario_name =
-                scenario_name,
-              source_name =
-                source_name,
-              similarity_records =
-                heldout_similarity_records,
-              similarity_policy =
-                similarity_policy_selected,
-              rf_records =
-                rf_heldout_records,
-              rf_assignments =
-                rf_heldout_assignments,
-              rf_policy =
-                rf_selected_policy,
-              sample_role =
-                "heldout"
-            )
-
-          result_index <-
-            result_index +
-              1L
-        }
-      }
-
-      dplyr::bind_rows(
-        results
-      )
-    }
+    build_scenario_complete_linkage_records(
+      identity_scenarios =
+        identity_scenarios,
+      enterprise_split =
+        enterprise_split,
+      similarity_records =
+        heldout_similarity_records,
+      similarity_policy =
+        similarity_policy_selected,
+      rf_records =
+        rf_heldout_records,
+      rf_assignments =
+        rf_heldout_assignments,
+      rf_policy =
+        rf_selected_policy,
+      sample_role =
+        "heldout"
+    )
   ),
 
   tar_target(
