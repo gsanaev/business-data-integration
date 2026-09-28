@@ -2,6 +2,7 @@
 
 *Reproducible enterprise-data integration, record linkage, selective automation, and statistical quality assessment using fully synthetic data.*
 
+![R CI](https://github.com/gsanaev/business-data-integration/actions/workflows/ci.yml/badge.svg)
 ![made-with-R](https://img.shields.io/badge/Made%20with-R-276DC2.svg)
 ![license](https://img.shields.io/badge/license-MIT-green.svg)
 
