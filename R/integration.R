@@ -305,3 +305,76 @@ derive_panel_indicators <- function(
     ) %>%
     ungroup()
 }
+
+
+build_integration_results <- function(
+  firms,
+  employment,
+  turnover,
+  accounting,
+  crosswalk
+) {
+  source_maps <-
+    build_source_maps(
+      crosswalk
+    )
+
+  linked_sources <-
+    attach_canonical_identifiers(
+      firms,
+      employment,
+      turnover,
+      accounting,
+      source_maps
+    )
+
+  common_firms <-
+    get_common_canonical_firms(
+      linked_sources$firms_linked,
+      linked_sources$employment_linked,
+      linked_sources$turnover_linked
+    )
+
+  accounting_annual <-
+    prepare_accounting_annual(
+      linked_sources$accounting_linked
+    )
+
+  source_panels <-
+    prepare_monthly_source_panels(
+      linked_sources$firms_linked,
+      linked_sources$employment_linked,
+      linked_sources$turnover_linked,
+      common_firms
+    )
+
+  panel <-
+    build_monthly_panel(
+      source_panels$employment_panel,
+      source_panels$turnover_panel,
+      source_panels$firms_panel
+    )
+
+  panel <-
+    derive_panel_indicators(
+      panel
+    )
+
+  if (
+    any(
+      panel$employees_monthly <= 0,
+      na.rm = TRUE
+    )
+  ) {
+    warning(
+      "Non-positive monthly employment values detected."
+    )
+  }
+
+  list(
+    panel =
+      panel,
+    accounting_annual =
+      accounting_annual
+  )
+}
