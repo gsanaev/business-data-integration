@@ -1294,16 +1294,10 @@ build_operational_synthetic_sources <- function(
 }
 
 
-build_synthetic_truth_outputs <- function(
-  identity_truth,
-  register_identity,
-  employment_identity,
-  turnover_identity,
-  accounting_identity,
-  attached_sources
+build_enterprise_truth <- function(
+  identity_truth
 ) {
-  enterprise_truth <-
-    identity_truth %>%
+  identity_truth %>%
     select(
       truth_firm_id,
       business_id,
@@ -1316,172 +1310,208 @@ build_synthetic_truth_outputs <- function(
       legal_form,
       foundation_year
     )
+}
 
-  linkage_truth <-
-    bind_rows(
-      register_identity %>%
-        transmute(
-          source = "register",
-          source_record_id = register_id,
-          truth_firm_id
-        ),
 
-      employment_identity %>%
-        transmute(
-          source = "employment",
-          source_record_id =
-            employment_source_id,
-          truth_firm_id
-        ),
+build_linkage_truth <- function(
+  register_identity,
+  employment_identity,
+  turnover_identity,
+  accounting_identity
+) {
+  bind_rows(
+    register_identity %>%
+      transmute(
+        source = "register",
+        source_record_id = register_id,
+        truth_firm_id
+      ),
 
-      turnover_identity %>%
-        transmute(
-          source = "turnover",
-          source_record_id =
-            turnover_source_id,
-          truth_firm_id
-        ),
+    employment_identity %>%
+      transmute(
+        source = "employment",
+        source_record_id =
+          employment_source_id,
+        truth_firm_id
+      ),
 
-      accounting_identity %>%
-        transmute(
-          source = "accounting",
-          source_record_id =
-            accounting_source_id,
-          truth_firm_id
-        )
-    )
+    turnover_identity %>%
+      transmute(
+        source = "turnover",
+        source_record_id =
+          turnover_source_id,
+        truth_firm_id
+      ),
 
-  value_truth <-
-    bind_rows(
-      attached_sources$firms %>%
-        transmute(
-          source = "register",
-          source_record_id = register_id,
-          truth_firm_id,
-          reference_period =
-            as.character(
-              register_reference_year
-            ),
-          variable = "employees",
-          truth_value =
-            as.numeric(
-              employees_register_complete
-            )
-        ),
-
-      attached_sources$firms %>%
-        transmute(
-          source = "register",
-          source_record_id = register_id,
-          truth_firm_id,
-          reference_period =
-            as.character(
-              revenue_reference_year
-            ),
-          variable = "revenue_last_year",
-          truth_value =
-            as.numeric(
-              revenue_last_year_complete
-            )
-        ),
-
-      attached_sources$employment %>%
-        transmute(
-          source = "employment",
-          source_record_id =
-            employment_source_id,
-          truth_firm_id,
-          reference_period =
-            format(
-              month,
-              "%Y-%m"
-            ),
-          variable = "employees",
-          truth_value =
-            as.numeric(
-              employees_source_complete
-            )
-        ),
-
-      attached_sources$turnover %>%
-        transmute(
-          source = "turnover",
-          source_record_id =
-            turnover_source_id,
-          truth_firm_id,
-          reference_period =
-            format(
-              month,
-              "%Y-%m"
-            ),
-          variable = "turnover",
-          truth_value =
-            as.numeric(
-              turnover_source_complete
-            )
-        ),
-
-      attached_sources$accounting %>%
-        transmute(
-          source = "accounting",
-          source_record_id =
-            accounting_source_id,
-          truth_firm_id,
-          reference_period =
-            as.character(
-              reference_year
-            ),
-          variable =
-            "operating_revenue",
-          truth_value =
-            as.numeric(
-              operating_revenue_complete
-            )
-        ),
-
-      attached_sources$accounting %>%
-        transmute(
-          source = "accounting",
-          source_record_id =
-            accounting_source_id,
-          truth_firm_id,
-          reference_period =
-            as.character(
-              reference_year
-            ),
-          variable =
-            "purchases_goods_services",
-          truth_value =
-            as.numeric(
-              purchases_goods_services_complete
-            )
-        ),
-
-      attached_sources$accounting %>%
-        transmute(
-          source = "accounting",
-          source_record_id =
-            accounting_source_id,
-          truth_firm_id,
-          reference_period =
-            as.character(
-              reference_year
-            ),
-          variable =
-            "personnel_expense",
-          truth_value =
-            as.numeric(
-              personnel_expense_complete
-            )
-        )
-    )
-
-  list(
-    enterprise = enterprise_truth,
-    linkage = linkage_truth,
-    value = value_truth
+    accounting_identity %>%
+      transmute(
+        source = "accounting",
+        source_record_id =
+          accounting_source_id,
+        truth_firm_id
+      )
   )
 }
+
+
+build_value_truth <- function(
+  attached_sources
+) {
+  bind_rows(
+    attached_sources$firms %>%
+      transmute(
+        source = "register",
+        source_record_id = register_id,
+        truth_firm_id,
+        reference_period =
+          as.character(
+            register_reference_year
+          ),
+        variable = "employees",
+        truth_value =
+          as.numeric(
+            employees_register_complete
+          )
+      ),
+
+    attached_sources$firms %>%
+      transmute(
+        source = "register",
+        source_record_id = register_id,
+        truth_firm_id,
+        reference_period =
+          as.character(
+            revenue_reference_year
+          ),
+        variable = "revenue_last_year",
+        truth_value =
+          as.numeric(
+            revenue_last_year_complete
+          )
+      ),
+
+    attached_sources$employment %>%
+      transmute(
+        source = "employment",
+        source_record_id =
+          employment_source_id,
+        truth_firm_id,
+        reference_period =
+          format(
+            month,
+            "%Y-%m"
+          ),
+        variable = "employees",
+        truth_value =
+          as.numeric(
+            employees_source_complete
+          )
+      ),
+
+    attached_sources$turnover %>%
+      transmute(
+        source = "turnover",
+        source_record_id =
+          turnover_source_id,
+        truth_firm_id,
+        reference_period =
+          format(
+            month,
+            "%Y-%m"
+          ),
+        variable = "turnover",
+        truth_value =
+          as.numeric(
+            turnover_source_complete
+          )
+      ),
+
+    attached_sources$accounting %>%
+      transmute(
+        source = "accounting",
+        source_record_id =
+          accounting_source_id,
+        truth_firm_id,
+        reference_period =
+          as.character(
+            reference_year
+          ),
+        variable =
+          "operating_revenue",
+        truth_value =
+          as.numeric(
+            operating_revenue_complete
+          )
+      ),
+
+    attached_sources$accounting %>%
+      transmute(
+        source = "accounting",
+        source_record_id =
+          accounting_source_id,
+        truth_firm_id,
+        reference_period =
+          as.character(
+            reference_year
+          ),
+        variable =
+          "purchases_goods_services",
+        truth_value =
+          as.numeric(
+            purchases_goods_services_complete
+          )
+      ),
+
+    attached_sources$accounting %>%
+      transmute(
+        source = "accounting",
+        source_record_id =
+          accounting_source_id,
+        truth_firm_id,
+        reference_period =
+          as.character(
+            reference_year
+          ),
+        variable =
+          "personnel_expense",
+        truth_value =
+          as.numeric(
+            personnel_expense_complete
+          )
+      )
+  )
+}
+
+
+build_synthetic_truth_outputs <- function(
+  identity_truth,
+  register_identity,
+  employment_identity,
+  turnover_identity,
+  accounting_identity,
+  attached_sources
+) {
+  list(
+    enterprise =
+      build_enterprise_truth(
+        identity_truth
+      ),
+
+    linkage =
+      build_linkage_truth(
+        register_identity,
+        employment_identity,
+        turnover_identity,
+        accounting_identity
+      ),
+
+    value =
+      build_value_truth(
+        attached_sources
+      )
+  )
+}
+
 
 additional_missing_probability <- function(
   target_probability,
