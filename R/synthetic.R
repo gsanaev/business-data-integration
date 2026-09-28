@@ -1513,6 +1513,147 @@ build_synthetic_truth_outputs <- function(
 }
 
 
+build_synthetic_baseline <- function(
+  project_config
+) {
+  # Preserve the verified v2/v3 baseline RNG sequence exactly.
+  set.seed(2025)
+
+  reference_structures <-
+    create_synthetic_reference_structures()
+
+  regions <-
+    reference_structures$regions
+
+  industry_params <-
+    reference_structures$industry_params
+
+  legal_forms <-
+    reference_structures$legal_forms
+
+  n_firms <- 1500L
+
+  baseline_scenario <-
+    project_config$scenarios$scenarios$baseline
+
+  firm_truth <-
+    generate_latent_enterprises(
+      regions,
+      industry_params,
+      legal_forms,
+      n_firms
+    )
+
+  years <- 2023:2025
+
+  annual_truth <-
+    generate_annual_latent_states(
+      firm_truth,
+      years
+    )
+
+  firms_inconsistent <-
+    generate_register_source(
+      annual_truth
+    )
+
+  monthly_reference <-
+    create_monthly_reference_profiles()
+
+  months <-
+    monthly_reference$months
+
+  employment_seasonality <-
+    monthly_reference$employment_seasonality
+
+  turnover_seasonality <-
+    monthly_reference$turnover_seasonality
+
+  employment <-
+    generate_monthly_employment(
+      firm_truth,
+      annual_truth,
+      months,
+      employment_seasonality
+    )
+
+  turnover <-
+    generate_monthly_turnover(
+      firm_truth,
+      annual_truth,
+      months,
+      turnover_seasonality
+    )
+
+  identity_truth <-
+    create_enterprise_identity_truth(
+      firm_truth,
+      regions
+    )
+
+  primary_identities <-
+    generate_primary_source_identities(
+      identity_truth,
+      n_firms,
+      baseline_scenario$missing_business_id
+    )
+
+  register_identity <-
+    primary_identities$register
+
+  employment_identity <-
+    primary_identities$employment
+
+  turnover_identity <-
+    primary_identities$turnover
+
+  accounting <-
+    generate_accounting_source(
+      annual_truth
+    )
+
+  accounting_identity <-
+    generate_accounting_identity(
+      identity_truth,
+      n_firms,
+      baseline_scenario$missing_business_id
+    )
+
+  attached_sources <-
+    attach_synthetic_source_identities(
+      firms_inconsistent,
+      employment,
+      turnover,
+      accounting,
+      register_identity,
+      employment_identity,
+      turnover_identity,
+      accounting_identity
+    )
+
+  operational_sources <-
+    build_operational_synthetic_sources(
+      attached_sources
+    )
+
+  truth_outputs <-
+    build_synthetic_truth_outputs(
+      identity_truth,
+      register_identity,
+      employment_identity,
+      turnover_identity,
+      accounting_identity,
+      attached_sources
+    )
+
+  list(
+    operational = operational_sources,
+    truth = truth_outputs,
+    attached_sources = attached_sources
+  )
+}
+
+
 additional_missing_probability <- function(
   target_probability,
   baseline_probability
