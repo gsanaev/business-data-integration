@@ -45,6 +45,10 @@ tar_source(
 )
 
 list(
+  # ===================================================================
+  # Configuration
+  # ===================================================================
+
   tar_target(
     config_files,
     c(
@@ -63,6 +67,10 @@ list(
       load_project_config()
     }
   ),
+
+  # ===================================================================
+  # Synthetic baseline and controlled identity scenarios
+  # ===================================================================
 
   tar_target(
     synthetic_baseline,
@@ -190,6 +198,10 @@ list(
       scenario_corruption_log
     )
   ),
+
+  # ===================================================================
+  # Development linkage evaluation and model selection
+  # ===================================================================
 
   tar_target(
     scenario_candidate_records,
@@ -438,9 +450,9 @@ list(
     )
   ),
 
-  # -------------------------------------------------------------------
-  # Stage 10B: final held-out linkage evaluation
-  # -------------------------------------------------------------------
+  # ===================================================================
+  # Final held-out linkage evaluation
+  # ===================================================================
 
   tar_target(
     heldout_candidate_records,
@@ -645,6 +657,10 @@ list(
     )
   ),
 
+  # ===================================================================
+  # Downstream statistical impact evaluation
+  # ===================================================================
+
   tar_target(
     heldout_downstream_scenario_results,
     run_downstream_scenario_evaluations(
@@ -702,6 +718,10 @@ list(
       )
     )
   ),
+
+  # ===================================================================
+  # Operational production chain: raw data to integrated panel
+  # ===================================================================
 
   tar_target(
     raw_files,
@@ -1008,6 +1028,10 @@ list(
     format = "file"
   ),
 
+  # ===================================================================
+  # Cross-source coherence assessment and review queue
+  # ===================================================================
+
   tar_target(
     coherence_results,
     {
@@ -1079,6 +1103,10 @@ list(
     format = "file"
   ),
 
+  # ===================================================================
+  # Enterprise-year construction and statistical indicators
+  # ===================================================================
+
   tar_target(
     indicator_results,
     {
@@ -1143,6 +1171,10 @@ list(
     },
     format = "file"
   ),
+
+  # ===================================================================
+  # Reporting outputs
+  # ===================================================================
 
   tar_target(
     figure_files,
