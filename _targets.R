@@ -1151,12 +1151,6 @@ list(
       indicator_files
       coherence_files
 
-      dir.create(
-        "output/figures",
-        showWarnings = FALSE,
-        recursive = TRUE
-      )
-
       panel <-
         read_csv(
           "data/processed/panel_data.csv",
@@ -1178,132 +1172,16 @@ list(
           show_col_types = FALSE
         )
 
-      validate_sector_plot_inputs(
-        indicators_sector
-      )
-
-      figure_width <- 8
-      figure_height <- 5.5
-      figure_dpi <- 160
-
-      base_theme <-
-        build_reporting_theme()
-
-      monthly_turnover <-
-        summarise_monthly_turnover(
-          panel
-        )
-
-      p_monthly_turnover <-
-        build_monthly_turnover_plot(
-          monthly_turnover,
-          base_theme
-        )
-
-      ggsave(
-        filename =
-          "output/figures/monthly_turnover_total.png",
-        plot =
-          p_monthly_turnover,
-        width =
-          figure_width,
-        height =
-          figure_height,
-        dpi =
-          figure_dpi
-      )
-
-      p_annual_turnover_sector <-
-        build_annual_turnover_sector_plot(
+      build_figure_files(
+        panel =
+          panel,
+        indicators_sector =
           indicators_sector,
-          base_theme
-        )
-
-      ggsave(
-        filename =
-          "output/figures/annual_turnover_by_sector.png",
-        plot =
-          p_annual_turnover_sector,
-        width =
-          figure_width,
-        height =
-          figure_height,
-        dpi =
-          figure_dpi
+        coherence_events =
+          coherence_events,
+        output_dir =
+          "output/figures"
       )
-
-      p_turnover_employee_sector <-
-        build_turnover_employee_sector_plot(
-          indicators_sector,
-          base_theme
-        )
-
-      ggsave(
-        filename =
-          "output/figures/turnover_per_employee_by_sector.png",
-        plot =
-          p_turnover_employee_sector,
-        width =
-          figure_width,
-        height =
-          figure_height,
-        dpi =
-          figure_dpi
-      )
-
-      coherence_plot_data <-
-        prepare_coherence_plot_data(
-          coherence_events
-        )
-
-      p_coherence <-
-        build_coherence_outcomes_plot(
-          coherence_plot_data,
-          base_theme
-        )
-
-      ggsave(
-        filename =
-          "output/figures/coherence_outcomes.png",
-        plot =
-          p_coherence,
-        width =
-          figure_width,
-        height =
-          figure_height,
-        dpi =
-          figure_dpi
-      )
-
-      figure_files <- c(
-        "output/figures/monthly_turnover_total.png",
-        "output/figures/annual_turnover_by_sector.png",
-        "output/figures/turnover_per_employee_by_sector.png",
-        "output/figures/coherence_outcomes.png"
-      )
-
-      missing_figures <-
-        figure_files[
-          !file.exists(
-            figure_files
-          )
-        ]
-
-      if (
-        length(
-          missing_figures
-        ) > 0L
-      ) {
-        stop(
-          "Expected figure files were not created: ",
-          paste(
-            missing_figures,
-            collapse = ", "
-          )
-        )
-      }
-
-      figure_files
     },
     format = "file"
   )

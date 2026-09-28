@@ -626,3 +626,168 @@ build_linkage_process_metadata <- function(
     "Reserved for final evaluation; not used for model or policy selection"
   )
 }
+
+
+build_figure_files <- function(
+  panel,
+  indicators_sector,
+  coherence_events,
+  output_dir = "output/figures",
+  figure_width = 8,
+  figure_height = 5.5,
+  figure_dpi = 160
+) {
+  dir.create(
+    output_dir,
+    showWarnings = FALSE,
+    recursive = TRUE
+  )
+
+  validate_sector_plot_inputs(
+    indicators_sector
+  )
+
+  base_theme <-
+    build_reporting_theme()
+
+  monthly_turnover <-
+    summarise_monthly_turnover(
+      panel
+    )
+
+  p_monthly_turnover <-
+    build_monthly_turnover_plot(
+      monthly_turnover,
+      base_theme
+    )
+
+  monthly_turnover_file <-
+    file.path(
+      output_dir,
+      "monthly_turnover_total.png"
+    )
+
+  ggsave(
+    filename =
+      monthly_turnover_file,
+    plot =
+      p_monthly_turnover,
+    width =
+      figure_width,
+    height =
+      figure_height,
+    dpi =
+      figure_dpi
+  )
+
+  p_annual_turnover_sector <-
+    build_annual_turnover_sector_plot(
+      indicators_sector,
+      base_theme
+    )
+
+  annual_turnover_sector_file <-
+    file.path(
+      output_dir,
+      "annual_turnover_by_sector.png"
+    )
+
+  ggsave(
+    filename =
+      annual_turnover_sector_file,
+    plot =
+      p_annual_turnover_sector,
+    width =
+      figure_width,
+    height =
+      figure_height,
+    dpi =
+      figure_dpi
+  )
+
+  p_turnover_employee_sector <-
+    build_turnover_employee_sector_plot(
+      indicators_sector,
+      base_theme
+    )
+
+  turnover_employee_sector_file <-
+    file.path(
+      output_dir,
+      "turnover_per_employee_by_sector.png"
+    )
+
+  ggsave(
+    filename =
+      turnover_employee_sector_file,
+    plot =
+      p_turnover_employee_sector,
+    width =
+      figure_width,
+    height =
+      figure_height,
+    dpi =
+      figure_dpi
+  )
+
+  coherence_plot_data <-
+    prepare_coherence_plot_data(
+      coherence_events
+    )
+
+  p_coherence <-
+    build_coherence_outcomes_plot(
+      coherence_plot_data,
+      base_theme
+    )
+
+  coherence_file <-
+    file.path(
+      output_dir,
+      "coherence_outcomes.png"
+    )
+
+  ggsave(
+    filename =
+      coherence_file,
+    plot =
+      p_coherence,
+    width =
+      figure_width,
+    height =
+      figure_height,
+    dpi =
+      figure_dpi
+  )
+
+  figure_files <-
+    c(
+      monthly_turnover_file,
+      annual_turnover_sector_file,
+      turnover_employee_sector_file,
+      coherence_file
+    )
+
+  missing_figures <-
+    figure_files[
+      !file.exists(
+        figure_files
+      )
+    ]
+
+  if (
+    length(
+      missing_figures
+    ) > 0L
+  ) {
+    stop(
+      "Expected figure files were not created: ",
+      paste(
+        missing_figures,
+        collapse = ", "
+      )
+    )
+  }
+
+  figure_files
+}
