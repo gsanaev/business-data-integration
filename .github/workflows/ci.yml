@@ -25,11 +25,11 @@ jobs:
       - name: Restore R environment
         uses: r-lib/actions/setup-renv@v2
 
-      - name: Run automated tests
-        run: Rscript tests/run_tests.R
-
       - name: Run targets pipeline
         run: Rscript -e 'targets::tar_make()'
+
+      - name: Run automated tests
+        run: Rscript tests/run_tests.R
 
       - name: Verify pipeline is current
         run: Rscript -e 'stopifnot(length(targets::tar_outdated()) == 0L)'
