@@ -790,15 +790,6 @@ list(
     {
       raw_files
 
-      validation_config <-
-        project_config$processing$validation
-
-      foundation_year_min <-
-        validation_config$foundation_year_min
-
-      employment_spike_multiplier <-
-        validation_config$employment_spike_multiplier
-
       firms_raw <-
         read_csv(
           "data/raw/firms.csv",
@@ -823,47 +814,17 @@ list(
           show_col_types = FALSE
         )
 
-      validate_source_structures(
-        firms_raw,
-        employment_raw,
-        turnover_raw,
-        accounting_raw
-      )
-
-      firms_clean <-
-        validate_register_source(
+      build_validated_sources(
+        firms_raw =
           firms_raw,
-          foundation_year_min
-        )
-
-      employment_clean <-
-        validate_employment_source(
+        employment_raw =
           employment_raw,
-          employment_spike_multiplier
-        )
-
-      turnover_clean <-
-        validate_turnover_source(
-          turnover_raw
-        )
-
-      accounting_clean <-
-        validate_accounting_source(
-          accounting_raw
-        )
-
-      assert_validated_sources(
-        firms_clean,
-        employment_clean,
-        turnover_clean,
-        accounting_clean
-      )
-
-      list(
-        firms = firms_clean,
-        employment = employment_clean,
-        turnover = turnover_clean,
-        accounting = accounting_clean
+        turnover_raw =
+          turnover_raw,
+        accounting_raw =
+          accounting_raw,
+        validation_config =
+          project_config$processing$validation
       )
     }
   ),
