@@ -1,0 +1,35 @@
+name: R CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validation:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: '4.4.2'
+          use-public-rspm: true
+
+      - name: Restore R environment
+        uses: r-lib/actions/setup-renv@v2
+
+      - name: Run automated tests
+        run: Rscript tests/run_tests.R
+
+      - name: Run targets pipeline
+        run: Rscript -e 'targets::tar_make()'
+
+      - name: Verify pipeline is current
+        run: Rscript -e 'stopifnot(length(targets::tar_outdated()) == 0L)'
